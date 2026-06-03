@@ -23,7 +23,7 @@
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            --header-height: 80px;
+            --header-height: 70px;
         }
 
         * {
@@ -36,10 +36,10 @@
             background-color: var(--bg-base);
             color: var(--text-main);
             font-family: var(--font-family);
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow-x: hidden;
+            overflow: hidden;
             background-image: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-base) 70%);
         }
 
@@ -49,19 +49,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0 30px;
+            padding: 0 24px;
             background: rgba(6, 9, 19, 0.6);
             backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
             z-index: 1000;
+            flex-shrink: 0;
         }
 
         .brand {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .status-dot {
@@ -80,7 +79,7 @@
         }
 
         .brand h1 {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 800;
             letter-spacing: -0.5px;
             background: linear-gradient(to right, #38bdf8, #818cf8);
@@ -92,18 +91,18 @@
         .info-dashboard {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-color);
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 30px;
         }
 
         .info-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
+            gap: 6px;
+            font-size: 0.8rem;
             color: var(--text-muted);
         }
 
@@ -114,7 +113,7 @@
 
         .info-divider {
             width: 1px;
-            height: 16px;
+            height: 12px;
             background-color: var(--border-color);
         }
 
@@ -128,14 +127,14 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-color);
             color: var(--text-main);
-            padding: 8px 14px;
-            font-size: 0.85rem;
+            padding: 7px 12px;
+            font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
-            border-radius: 8px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -151,119 +150,154 @@
             color: var(--accent);
         }
 
-        /* Segmented control for layouts */
-        .layout-group {
-            display: flex;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            padding: 3px;
-            border-radius: 10px;
-        }
-
-        .layout-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 6px 10px;
-            border-radius: 7px;
-            cursor: pointer;
+        /* Dropdown layout selector */
+        .layout-selector-container {
             display: flex;
             align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+            gap: 8px;
         }
 
-        .layout-btn:hover {
+        .layout-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .layout-dropdown {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
             color: var(--text-main);
+            padding: 6px 28px 6px 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
         }
 
-        .layout-btn.active {
-            background: rgba(255, 255, 255, 0.08);
+        .layout-dropdown:hover {
+            border-color: var(--accent);
             color: var(--accent);
         }
 
-        /* Main panels spacing */
+        /* Main viewport boundaries */
         main {
             flex-grow: 1;
-            padding: 30px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-width: 1600px;
-            margin: 0 auto;
+            height: calc(100vh - var(--header-height));
+            overflow: hidden; /* Strict fixed container, no scroll */
         }
 
         .view-panel {
             width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
-            gap: 20px;
         }
 
         .hidden {
             display: none !important;
         }
 
-        /* Stream Layout Grids */
+        /* Fixed Grid Layout Containers */
         #grid-container {
             display: grid;
-            gap: 20px;
+            gap: 12px;
             width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
 
-        /* Cinema: 1 large player */
+        /* Cinema: 1 single card spanning full screen */
         .layout-cinema {
             grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
         }
 
-        /* Cinema Selector Bar below player */
+        .layout-cinema.has-selector {
+            grid-template-rows: 1fr auto;
+        }
+
+        /* Cinema Selector Bar */
         .cinema-selector {
             background: var(--bg-surface);
             border: 1px solid var(--border-color);
-            padding: 15px;
-            border-radius: 12px;
+            padding: 10px;
+            border-radius: 8px;
             margin-top: 10px;
+            flex-shrink: 0;
         }
 
         .cinema-selector h4 {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .cinema-selector-group {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
         .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.8rem;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            border-radius: 4px;
         }
 
-        /* Multi-View / Grid Layout */
-        .layout-grid {
-            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        /* Strict Grid Layout Definitions */
+        .grid-2x2 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
         }
-        .layout-grid.count-1 { grid-template-columns: 1fr; }
-        .layout-grid.count-2 { grid-template-columns: repeat(2, 1fr); }
-        .layout-grid.count-3, .layout-grid.count-4 { grid-template-columns: repeat(2, 1fr); }
 
-        /* 1 Large + 5 Small Layout (Max-columns: 3) */
+        .grid-3x3 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .grid-4x4 {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+        }
+
+        .grid-2x3 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .grid-2x4 {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        /* 1 Large + 5 Small Layout */
         .layout-1-5 {
             grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
         }
         .layout-1-5 .stream-card.large {
             grid-column: span 2;
             grid-row: span 2;
         }
 
-        /* 2 Large + 3 Small Layout (6 columns total) */
+        /* 2 Large + 3 Small Layout */
         .layout-2-3 {
             grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(2, 1fr);
         }
         .layout-2-3 .stream-card.large {
             grid-column: span 3;
@@ -272,37 +306,51 @@
             grid-column: span 2;
         }
 
-        /* Card styles */
+        /* Drag and Drop Visual Feedback */
         .stream-card {
             background: var(--bg-surface);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
+            border-radius: 10px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
             backdrop-filter: blur(12px);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            height: 100%;
+            cursor: grab;
         }
 
-        .stream-card:hover {
-            border-color: var(--border-focus);
-            box-shadow: 0 8px 30px var(--accent-glow);
-            transform: translateY(-2px);
+        .stream-card:active {
+            cursor: grabbing;
+        }
+
+        .stream-card.dragging {
+            opacity: 0.3;
+            border: 2px dashed var(--accent);
+            transform: scale(0.98);
+        }
+
+        .stream-card.drag-over {
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: scale(1.01);
         }
 
         .stream-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 16px;
+            padding: 8px 12px;
             background: rgba(0, 0, 0, 0.2);
             border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            user-select: none;
         }
 
         .stream-name {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-main);
             white-space: nowrap;
             overflow: hidden;
@@ -310,9 +358,9 @@
         }
 
         .stream-type-badge {
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 4px;
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            border-radius: 3px;
             background: rgba(56, 189, 248, 0.08);
             color: var(--accent);
             border: 1px solid rgba(56, 189, 248, 0.15);
@@ -322,8 +370,9 @@
 
         .stream-player-container {
             width: 100%;
+            flex-grow: 1;
+            height: 0; /* Important: allows card container content to size strictly */
             position: relative;
-            aspect-ratio: 16/9;
             background: #000;
         }
 
@@ -335,13 +384,21 @@
             border: none;
         }
 
+        .video-js {
+            width: 100% !important;
+            height: 100% !important;
+            aspect-ratio: auto !important; /* Force to stretch and fill parents */
+        }
+
         .stream-controls {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 12px;
+            padding: 6px 10px;
             background: rgba(0, 0, 0, 0.25);
             border-top: 1px solid var(--border-color);
+            flex-shrink: 0;
+            user-select: none;
         }
 
         .control-btn {
@@ -349,8 +406,8 @@
             border: none;
             color: var(--text-muted);
             cursor: pointer;
-            padding: 6px;
-            border-radius: 6px;
+            padding: 4px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -365,9 +422,9 @@
         .volume-control {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-grow: 1;
-            margin: 0 15px;
+            margin: 0 10px;
         }
 
         .volume-slider {
@@ -389,13 +446,13 @@
         .volume-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: var(--accent);
             cursor: pointer;
-            margin-top: -4px;
-            box-shadow: 0 0 8px var(--accent);
+            margin-top: -3px;
+            box-shadow: 0 0 6px var(--accent);
             transition: transform 0.1s;
         }
 
@@ -404,7 +461,7 @@
         }
 
         .control-note {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             font-style: italic;
         }
@@ -412,26 +469,30 @@
         /* Empty state styling */
         .no-streams {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px 20px;
             background: var(--bg-surface);
             border: 1px dashed var(--border-color);
-            border-radius: 16px;
+            border-radius: 12px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
+            justify-content: center;
+            height: 100%;
         }
 
         .no-streams p {
             color: var(--text-muted);
-            font-size: 1rem;
+            font-size: 0.9rem;
         }
 
         /* Weather panel */
         #panel-weather iframe {
-            border-radius: 12px;
+            border-radius: 8px;
             border: 1px solid var(--border-color);
             background: var(--bg-surface);
+            width: 100%;
+            height: 100%;
         }
 
         /* Modal Overlay */
@@ -480,13 +541,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 18px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border-color);
             background: rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
         }
 
         .modal-title {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: var(--text-main);
             display: flex;
@@ -519,15 +581,16 @@
             border-bottom: 1px solid var(--border-color);
             background: rgba(0, 0, 0, 0.1);
             padding: 0 20px;
+            flex-shrink: 0;
         }
 
         .tab-btn {
             background: transparent;
             border: none;
             color: var(--text-muted);
-            padding: 14px 20px;
+            padding: 12px 16px;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
             transition: all 0.2s;
@@ -543,7 +606,7 @@
         }
 
         .modal-body {
-            padding: 24px;
+            padding: 20px;
             overflow-y: auto;
             flex-grow: 1;
         }
@@ -558,30 +621,30 @@
 
         /* Forms in Modal */
         .form-section-title {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             color: var(--accent);
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 6px;
+            padding-bottom: 4px;
         }
 
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            margin-bottom: 15px;
+            gap: 4px;
+            margin-bottom: 12px;
         }
 
         .form-group label {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
             color: var(--text-muted);
         }
@@ -590,11 +653,11 @@
         .form-group select {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px 12px;
+            border-radius: 6px;
+            padding: 8px 10px;
             color: var(--text-main);
             font-family: var(--font-family);
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             outline: none;
             transition: border-color 0.2s;
         }
@@ -634,19 +697,19 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
-            margin-top: 20px;
+            margin-top: 15px;
         }
 
         .streams-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             text-align: left;
         }
 
         .streams-table th,
         .streams-table td {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-bottom: 1px solid var(--border-color);
         }
 
@@ -662,6 +725,16 @@
 
         .streams-table tr:hover td {
             background: rgba(255, 255, 255, 0.01);
+        }
+
+        .table-action-group {
+            display: flex;
+            gap: 4px;
+        }
+
+        .btn-icon {
+            padding: 4px;
+            font-size: 0.8rem;
         }
 
         .checkbox-container {
@@ -682,15 +755,15 @@
             background: #111;
             color: #ef4444;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             border: 1px solid rgba(ef, 68, 68, 0.2);
         }
 
         .about-text {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
             line-height: 1.6;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -715,19 +788,19 @@
             <button class="btn" id="cycle-btn" onclick="toggleCycle()">Auto-Cycle: OFF</button>
             <button class="btn" onclick="toggleFS()">Fullscreen</button>
             
-            <div class="layout-group">
-                <button class="layout-btn active" id="layout-btn-cinema" onclick="handleLayoutChange('cinema')" title="Cinema Layout">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/></svg>
-                </button>
-                <button class="layout-btn" id="layout-btn-layout-grid" onclick="handleLayoutChange('layout-grid')" title="Multi-View (Grid) Layout">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                </button>
-                <button class="layout-btn" id="layout-btn-layout-1-5" onclick="handleLayoutChange('layout-1-5')" title="1 Large + 5 Small Layout">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="10" height="10"/><rect x="16" y="3" width="5" height="4"/><rect x="16" y="9" width="5" height="4"/><rect x="16" y="15" width="5" height="6"/><rect x="3" y="15" width="5" height="6"/><rect x="10" y="15" width="4" height="6"/></svg>
-                </button>
-                <button class="layout-btn" id="layout-btn-layout-2-3" onclick="handleLayoutChange('layout-2-3')" title="2 Large + 3 Small Layout">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="9" height="8"/><rect x="13" y="3" width="9" height="8"/><rect x="2" y="13" width="5" height="8"/><rect x="9" y="13" width="6" height="8"/><rect x="17" y="13" width="5" height="8"/></svg>
-                </button>
+            <!-- Dropdown Layout Selector -->
+            <div class="layout-selector-container">
+                <span class="layout-label">Layout:</span>
+                <select id="layout-select-dropdown" onchange="handleLayoutChange(this.value)" class="layout-dropdown">
+                    <option value="cinema">Cinema View (1 Stream)</option>
+                    <option value="grid-2x2">2x2 Grid (Max 4)</option>
+                    <option value="grid-2x3">2x3 Grid (Max 6)</option>
+                    <option value="grid-2x4">2x4 Grid (Max 8)</option>
+                    <option value="grid-3x3">3x3 Grid (Max 9)</option>
+                    <option value="grid-4x4">4x4 Grid (Max 16)</option>
+                    <option value="layout-1-5">1 Large + 5 Small (Max 6)</option>
+                    <option value="layout-2-3">2 Large + 3 Small (Max 5)</option>
+                </select>
             </div>
 
             <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Map</button>
@@ -748,7 +821,7 @@
 
         <!-- Full Weather Map Panel -->
         <div id="panel-weather" class="view-panel hidden">
-            <iframe src="https://wttr.in/Galveston?m&2&F&transparency=150" style="width:100%; height:600px; border:none;"></iframe>
+            <iframe src="https://wttr.in/Galveston?m&2&F&transparency=150" style="width:100%; height:100%; border:none;"></iframe>
         </div>
     </main>
 
@@ -796,16 +869,16 @@
                         <button type="submit" class="btn btn-primary">Add Stream Source</button>
                     </form>
 
-                    <div class="form-section-title" style="margin-top: 30px;">Configured Channels</div>
+                    <div class="form-section-title" style="margin-top: 25px;">Configured Channels</div>
                     <div class="streams-table-wrapper">
                         <table class="streams-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 70px;">Active</th>
+                                    <th style="width: 50px;">Active</th>
                                     <th>Channel Name</th>
                                     <th>Type</th>
                                     <th>Stream URL / Source ID</th>
-                                    <th style="width: 100px;">Actions</th>
+                                    <th style="width: 140px;">Order / Action</th>
                                 </tr>
                             </thead>
                             <tbody id="streams-table-body">
@@ -873,6 +946,18 @@
             { name: "East Beach Overlook", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.odojbkb.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true }
         ];
 
+        // Capacity configuration for each layout
+        const LAYOUT_CAPACITIES = {
+            'cinema': 1,
+            'grid-2x2': 4,
+            'grid-2x3': 6,
+            'grid-2x4': 8,
+            'grid-3x3': 9,
+            'grid-4x4': 16,
+            'layout-1-5': 6,
+            'layout-2-3': 5
+        };
+
         // Custom control SVG definitions
         const PLAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
         const PAUSE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>`;
@@ -892,6 +977,7 @@
         let activePlayers = {};
         let cinemaActiveStreamId = null;
         let cycleInterval = null;
+        let dragSourceId = null;
 
         // Dynamic API script loading triggers
         let youtubeAPIReady = false;
@@ -939,6 +1025,10 @@
             const activeIds = appState.streams.filter(s => s.active).map(s => s.id);
             setCookie('active_stream_ids', JSON.stringify(activeIds), 365);
             
+            // Save stream order
+            const orderIds = appState.streams.map(s => s.id);
+            setCookie('stream_order', JSON.stringify(orderIds), 365);
+            
             // Save location configuration
             setCookie('location_config', JSON.stringify({
                 location: appState.location,
@@ -976,7 +1066,7 @@
             }
             
             // Build streams list
-            const streams = defaultChannels.map((c, idx) => ({
+            let streams = defaultChannels.map((c, idx) => ({
                 id: 'default-' + idx,
                 name: c.name,
                 url: c.url,
@@ -1008,6 +1098,23 @@
                     console.error('Error parsing active stream IDs cookie', e);
                 }
             }
+
+            // Load and sort by stream order index
+            const savedOrder = getCookie('stream_order');
+            if (savedOrder) {
+                try {
+                    const orderIds = JSON.parse(savedOrder);
+                    streams.sort((a, b) => {
+                        let idxA = orderIds.indexOf(a.id);
+                        let idxB = orderIds.indexOf(b.id);
+                        if (idxA === -1) idxA = 9999;
+                        if (idxB === -1) idxB = 9999;
+                        return idxA - idxB;
+                    });
+                } catch (e) {
+                    console.error('Error parsing stream order cookie', e);
+                }
+            }
             
             appState.streams = streams;
             
@@ -1020,7 +1127,7 @@
             loadThirdPartyAPIs();
             
             // Select layout and render streams
-            selectLayoutButton(appState.layout);
+            document.getElementById('layout-select-dropdown').value = appState.layout;
             renderActiveStreams();
             populateSettings();
         }
@@ -1107,6 +1214,58 @@
             }
         }
 
+        // Drag and Drop implementation
+        function handleDragStart(e, streamId) {
+            dragSourceId = streamId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            e.currentTarget.classList.add('drag-over');
+            return false;
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e, targetId) {
+            e.stopPropagation();
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            if (dragSourceId && dragSourceId !== targetId) {
+                swapStreams(dragSourceId, targetId);
+            }
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.stream-card').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        function swapStreams(id1, id2) {
+            const idx1 = appState.streams.findIndex(s => s.id === id1);
+            const idx2 = appState.streams.findIndex(s => s.id === id2);
+            
+            if (idx1 !== -1 && idx2 !== -1) {
+                // Swap positioning
+                const temp = appState.streams[idx1];
+                appState.streams[idx1] = appState.streams[idx2];
+                appState.streams[idx2] = temp;
+                
+                persistState();
+                renderActiveStreams();
+                populateSettings();
+            }
+        }
+
         // Render layout logic
         function renderActiveStreams() {
             clearAllPlayers();
@@ -1128,12 +1287,16 @@
             
             container.className = '';
             
+            // Get layout capacity and cull streams that exceed it
+            const capacity = LAYOUT_CAPACITIES[appState.layout] || 4;
+            const displayStreams = activeStreams.slice(0, capacity);
+            
             if (appState.layout === 'cinema') {
                 container.classList.add('layout-cinema');
                 
-                let activeStream = activeStreams.find(s => s.id === cinemaActiveStreamId);
+                let activeStream = displayStreams.find(s => s.id === cinemaActiveStreamId);
                 if (!activeStream) {
-                    activeStream = activeStreams[0];
+                    activeStream = displayStreams[0];
                     cinemaActiveStreamId = activeStream.id;
                 }
                 
@@ -1141,6 +1304,7 @@
                 
                 // Cinema view streams navigation bar
                 if (activeStreams.length > 1) {
+                    container.classList.add('has-selector');
                     const selectorDiv = document.createElement('div');
                     selectorDiv.className = 'cinema-selector';
                     selectorDiv.innerHTML = '<h4>Active Channels Selector</h4>';
@@ -1163,17 +1327,14 @@
                 }
             } else {
                 container.classList.add(appState.layout);
-                if (appState.layout === 'layout-grid') {
-                    container.classList.add('count-' + Math.min(activeStreams.length, 4));
-                }
                 
-                activeStreams.forEach(s => {
+                displayStreams.forEach(s => {
                     renderStreamCard(container, s);
                 });
             }
             
             // Instantiate players once inside DOM
-            activeStreams.forEach(s => {
+            displayStreams.forEach(s => {
                 const playerContainer = document.getElementById(`player-container-${s.id}`);
                 if (!playerContainer) return; // not rendered in current view layout
                 initializePlayer(s);
@@ -1186,7 +1347,15 @@
             card.id = `card-${stream.id}`;
             card.className = 'stream-card';
             
-            // Add sizing tags for grid layouts
+            // HTML5 Drag and Drop event attributes
+            card.setAttribute('draggable', 'true');
+            card.setAttribute('ondragstart', `handleDragStart(event, '${stream.id}')`);
+            card.setAttribute('ondragover', `handleDragOver(event)`);
+            card.setAttribute('ondragleave', `handleDragLeave(event)`);
+            card.setAttribute('ondrop', `handleDrop(event, '${stream.id}')`);
+            card.setAttribute('ondragend', `handleDragEnd(event)`);
+            
+            // Add sizing tags for asymmetric layouts
             if (appState.layout === 'layout-1-5') {
                 const activeStreams = appState.streams.filter(s => s.active);
                 const index = activeStreams.indexOf(stream);
@@ -1250,11 +1419,12 @@
                 container.appendChild(videoEl);
                 
                 try {
+                    // Set fluid: false for strict container resizing in fixed layout cells
                     const player = videojs(videoEl.id, {
                         autoplay: true,
                         muted: true,
                         controls: false,
-                        fluid: true
+                        fluid: false
                     });
                     player.src({ src: stream.url, type: 'application/x-mpegURL' });
                     
@@ -1637,17 +1807,9 @@
             }
         }
 
-        // Layout selectors triggers
-        function selectLayoutButton(layout) {
-            document.querySelectorAll('.layout-group .layout-btn').forEach(b => b.classList.remove('active'));
-            const activeBtn = document.getElementById(`layout-btn-${layout}`);
-            if (activeBtn) activeBtn.classList.add('active');
-        }
-
         function handleLayoutChange(layoutName) {
             appState.layout = layoutName;
             persistState();
-            selectLayoutButton(layoutName);
             
             // Switch panels
             document.getElementById('panel-streams').classList.remove('hidden');
@@ -1666,13 +1828,11 @@
                 weatherPanel.classList.remove('hidden');
                 streamPanel.classList.add('hidden');
                 weatherBtn.classList.add('active');
-                document.querySelectorAll('.layout-group .layout-btn').forEach(b => b.classList.remove('active'));
                 renderWeatherPanel();
             } else {
                 weatherPanel.classList.add('hidden');
                 streamPanel.classList.remove('hidden');
                 weatherBtn.classList.remove('active');
-                selectLayoutButton(appState.layout);
                 renderActiveStreams();
             }
         }
@@ -1692,6 +1852,7 @@
             }
         }
 
+        // Settings Modal navigation
         function switchTab(tabId) {
             document.querySelectorAll('.modal-tabs .tab-btn').forEach(b => {
                 b.classList.remove('active');
@@ -1758,15 +1919,15 @@
             closeSettings();
         }
 
-        // Populate table inside settings
+        // Populate settings table dynamically
         function populateSettings() {
             const tbody = document.getElementById('streams-table-body');
             tbody.innerHTML = '';
             
-            appState.streams.forEach(s => {
+            appState.streams.forEach((s, idx) => {
                 const tr = document.createElement('tr');
                 
-                // Active checkbox cell
+                // Active checkbox
                 const checkboxCell = document.createElement('td');
                 checkboxCell.innerHTML = `
                     <label class="checkbox-container">
@@ -1775,38 +1936,60 @@
                 `;
                 tr.appendChild(checkboxCell);
                 
-                // Name cell
+                // Name
                 const nameCell = document.createElement('td');
                 nameCell.innerText = s.name;
                 tr.appendChild(nameCell);
                 
-                // Type cell
+                // Type
                 const typeCell = document.createElement('td');
                 typeCell.innerHTML = `<span class="stream-type-badge">${s.type}</span>`;
                 tr.appendChild(typeCell);
                 
-                // URL cell
+                // URL
                 const urlCell = document.createElement('td');
                 urlCell.innerText = s.url;
-                urlCell.style.maxWidth = '250px';
+                urlCell.style.maxWidth = '200px';
                 urlCell.style.overflow = 'hidden';
                 urlCell.style.textOverflow = 'ellipsis';
                 urlCell.style.whiteSpace = 'nowrap';
                 tr.appendChild(urlCell);
                 
-                // Actions cell
-                const actionsCell = document.createElement('td');
-                if (s.isDefault) {
-                    actionsCell.innerHTML = `<span style="color: var(--text-muted); font-size: 0.75rem;">System Default</span>`;
-                } else {
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'btn btn-danger btn-sm';
-                    deleteBtn.innerText = 'Delete';
-                    deleteBtn.onclick = () => deleteStream(s.id);
-                    actionsCell.appendChild(deleteBtn);
-                }
-                tr.appendChild(actionsCell);
+                // Order actions & delete button
+                const actionCell = document.createElement('td');
+                actionCell.className = 'table-action-group';
                 
+                const upBtn = document.createElement('button');
+                upBtn.className = 'btn btn-icon';
+                upBtn.innerHTML = '&uarr;';
+                upBtn.disabled = idx === 0;
+                upBtn.onclick = () => moveStream(s.id, 'up');
+                
+                const downBtn = document.createElement('button');
+                downBtn.className = 'btn btn-icon';
+                downBtn.innerHTML = '&darr;';
+                downBtn.disabled = idx === appState.streams.length - 1;
+                downBtn.onclick = () => moveStream(s.id, 'down');
+                
+                actionCell.appendChild(upBtn);
+                actionCell.appendChild(downBtn);
+                
+                if (!s.isDefault) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'btn btn-danger btn-sm btn-icon';
+                    deleteBtn.innerText = 'Del';
+                    deleteBtn.onclick = () => deleteStream(s.id);
+                    actionCell.appendChild(deleteBtn);
+                } else {
+                    const label = document.createElement('span');
+                    label.innerText = ' Sys';
+                    label.style.color = 'var(--text-muted)';
+                    label.style.fontSize = '0.7rem';
+                    label.style.lineHeight = '2.2';
+                    actionCell.appendChild(label);
+                }
+                
+                tr.appendChild(actionCell);
                 tbody.appendChild(tr);
             });
         }
@@ -1817,7 +2000,6 @@
                 s.active = checked;
                 persistState();
                 
-                // Switch auto-cycle off if active streams drops below 2
                 const activeStreams = appState.streams.filter(st => st.active);
                 if (activeStreams.length <= 1 && cycleInterval) {
                     toggleCycle();
@@ -1825,6 +2007,22 @@
                 
                 renderActiveStreams();
             }
+        }
+
+        function moveStream(id, direction) {
+            const idx = appState.streams.findIndex(s => s.id === id);
+            if (idx === -1) return;
+            const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (targetIdx < 0 || targetIdx >= appState.streams.length) return;
+            
+            // Swap array positioning
+            const temp = appState.streams[idx];
+            appState.streams[idx] = appState.streams[targetIdx];
+            appState.streams[targetIdx] = temp;
+            
+            persistState();
+            populateSettings();
+            renderActiveStreams();
         }
 
         function deleteStream(id) {
@@ -1840,13 +2038,12 @@
 
         function resetToSystemDefaults() {
             if (confirm("Are you sure you want to reset all configurations? This will wipe your settings and custom streams.")) {
-                // Clear cookies
                 setCookie('stream_layout', '', -1);
                 setCookie('user_streams', '', -1);
                 setCookie('active_stream_ids', '', -1);
+                setCookie('stream_order', '', -1);
                 setCookie('location_config', '', -1);
                 
-                // Reset appState
                 appState.layout = 'cinema';
                 appState.location = "Galveston";
                 appState.timezone = "America/Chicago";
