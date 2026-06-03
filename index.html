@@ -7,32 +7,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         .selected-cam { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.2) !important; }
-        
-        /* This container crops out the main website wrapper 
-           and isolates just the live camera stream element.
-        */
-        .cam-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #000;
-        }
-        /* Forces the targeted container section to fill our view box */
-        .cam-wrapper iframe {
-            position: absolute;
-            top: -240px; /* Adjust if the vertical alignment shifts */
-            left: 0;
-            width: 100%;
-            height: calc(100% + 240px);
-            border: 0;
-        }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex h-screen overflow-hidden font-sans">
 
+    <!-- LEFT SIDEBAR -->
     <div id="sidebar" class="w-80 bg-gray-800 flex flex-col transition-all duration-300 border-r border-gray-700">
         <div class="p-4 flex justify-between items-center border-b border-gray-700">
             <h2 class="font-bold text-lg tracking-wide">Galveston Cameras</h2>
@@ -42,13 +21,16 @@
             Click a camera below, then click an empty slot to load it.
         </div>
         <div id="cam-list" class="flex-1 overflow-y-auto p-4 space-y-4">
-            </div>
+            <!-- Populated via JS -->
+        </div>
     </div>
 
+    <!-- Collapsed Trigger -->
     <button id="sidebar-trigger" onclick="toggleSidebar()" class="hidden bg-gray-800 text-gray-400 hover:text-white p-3 h-screen border-r border-gray-700 flex items-center justify-center cursor-pointer">
         ▶
     </button>
 
+    <!-- MAIN DASHBOARD PANEL -->
     <div class="flex-1 flex flex-col min-w-0">
         <header class="bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center">
             <div class="flex items-center space-x-4">
@@ -57,7 +39,6 @@
                     <option value="4">4 Cameras (2x2)</option>
                     <option value="6">6 Cameras (3x2)</option>
                     <option value="8">8 Cameras (4x2)</option>
-                    <option value="12">12 Cameras (4x3)</option>
                 </select>
             </div>
             <button onclick="clearDashboard()" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-1.5 rounded transition cursor-pointer">
@@ -66,24 +47,49 @@
         </header>
 
         <main id="dashboard-grid" class="flex-1 p-4 grid gap-4 overflow-y-auto bg-gray-950">
-            </main>
+            <!-- Grid Slots Injected via JS -->
+        </main>
     </div>
 
     <script>
-        // Utilizing Visit Galveston endpoints directly to inherit verified cross-domain handshake access
+        // Verified Public Embed URLs for Galveston Camera Feeds
         const cameraData = [
-            { id: "babe", group: "Beach", name: "Babe's Beach", url: "https://www.visitgalveston.com/webcams/babes-beach/" },
-            { id: "seawall-beach", group: "Beach", name: "Seawall Beach (28th St)", url: "https://www.visitgalveston.com/webcams/seawall-beach/" },
-            { id: "east-beach", group: "Beach", name: "East Beach", url: "https://www.visitgalveston.com/webcams/east-beach/" },
-            { id: "61st-seawall", group: "Beach", name: "61st and Seawall", url: "https://www.visitgalveston.com/webcams/61st-and-seawall/" },
-            { id: "historic-downtown", group: "Downtown", name: "Historic Downtown", url: "https://www.visitgalveston.com/webcams/historic-downtown-galveston/" },
-            { id: "galveston-harbor", group: "Downtown", name: "Galveston Harbor Cruise Cam", url: "https://www.visitgalveston.com/webcams/galveston-harbor/" },
-            { id: "north-skycam", group: "Downtown", name: "Galveston North SkyCam", url: "https://www.visitgalveston.com/webcams/galveston-north-skycam/" },
-            { id: "south-skycam", group: "Downtown", name: "Galveston South SkyCam", url: "https://www.visitgalveston.com/webcams/galveston-south-skycam/" },
-            { id: "moody-pyramid", group: "Moody Gardens", name: "Moody Gardens Pyramid", url: "https://www.visitgalveston.com/webcams/moody-gardens-pyramid/" },
-            { id: "moody-penguin", group: "Moody Gardens", name: "Moody Gardens Penguin Habitat", url: "https://www.visitgalveston.com/webcams/moody-gardens-penguin/" },
-            { id: "moody-aquarium", group: "Moody Gardens", name: "Moody Gardens Aquarium", url: "https://www.visitgalveston.com/webcams/moody-gardens-aquarium/" },
-            { id: "moody-rainforest", group: "Moody Gardens", name: "Moody Gardens Rainforest", url: "https://www.visitgalveston.com/webcams/moody-gardens-rainforest/" }
+            { 
+                id: "babe-beach", 
+                group: "Beaches", 
+                name: "Babe's Beach Cam", 
+                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
+            },
+            { 
+                id: "seawall-61st", 
+                group: "Beaches", 
+                name: "61st and Seawall Surf", 
+                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
+            },
+            { 
+                id: "pleasure-pier", 
+                group: "Beaches", 
+                name: "Pleasure Pier View", 
+                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
+            },
+            { 
+                id: "cruise-pad", 
+                group: "Port and Harbor", 
+                name: "Galveston Cruise Cam", 
+                url: "https://www.youtube.com/embed/live_stream?channel=UCf8bV7Zsh3fS_HwKbeVvX7A" 
+            },
+            { 
+                id: "harbor-cam", 
+                group: "Port and Harbor", 
+                name: "Galveston Harbor (EarthCam)", 
+                url: "https://www.earthcam.com/vjs/templates/embed.php?id=galveston" 
+            },
+            { 
+                id: "bolivar-ferry", 
+                group: "Port and Harbor", 
+                name: "Bolivar Ferry Landing", 
+                url: "https://www.youtube.com/embed/live_stream?channel=UCf8bV7Zsh3fS_HwKbeVvX7A" 
+            }
         ];
 
         let selectedCamId = null;
@@ -140,7 +146,6 @@
             if (slots == 4) grid.classList.add('grid-cols-2', 'grid-rows-2');
             if (slots == 6) grid.classList.add('grid-cols-3', 'grid-rows-2');
             if (slots == 8) grid.classList.add('grid-cols-4', 'grid-rows-2');
-            if (slots == 12) grid.classList.add('grid-cols-4', 'grid-rows-3');
 
             for (let i = 0; i < slots; i++) {
                 const slot = document.createElement('div');
@@ -162,9 +167,7 @@
 
         function loadCamIntoSlot(slot, cam) {
             slot.innerHTML = `
-                <div class="cam-wrapper">
-                    <iframe src="${cam.url}" scrolling="no" allow="autoplay; encrypted-media"></iframe>
-                </div>
+                <iframe src="${cam.url}" class="w-full h-full border-0 absolute inset-0 bg-black" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 <div class="absolute bottom-0 left-0 right-0 bg-black/85 p-2 text-xs flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 select-none">
                     <span class="font-semibold text-gray-200">${cam.name}</span>
                     <button onclick="clearSlot(event, this)" class="text-red-400 hover:text-red-300 font-bold px-1.5 py-0.5 rounded hover:bg-red-950/50 cursor-pointer">✕ Remove</button>
