@@ -3,214 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Galveston Live Cam Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>Galveston Matrix Console</title>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <style>
-        .selected-cam { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.2) !important; }
+        body { background-color: #090d16; color: #fff; font-family: sans-serif; margin: 0; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 20px; }
+        .view-panel { width: 100%; max-width: 1400px; margin: auto; }
+        .hidden { display: none !important; }
+        .controls { display: flex; gap: 10px; }
+        .btn { background: #131a26; border: 1px solid #222; color: #fff; padding: 10px 15px; cursor: pointer; border-radius: 6px; }
+        .btn.active { border-color: #38bdf8; color: #38bdf8; }
+        
+        /* Fixed Clock */
+        #clock { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); padding: 10px 15px; border-radius: 8px; border: 1px solid #38bdf8; font-family: monospace; font-size: 1.2rem; color: #38bdf8; z-index: 1000; }
+        
+        /* Grid and Ratio Fix */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin-top: 20px; }
+        .video-container { width: 100%; }
+        .video-js { width: 100% !important; height: auto !important; aspect-ratio: 16/9 !important; }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex h-screen overflow-hidden font-sans">
+<body>
 
-    <!-- LEFT SIDEBAR -->
-    <div id="sidebar" class="w-80 bg-gray-800 flex flex-col transition-all duration-300 border-r border-gray-700">
-        <div class="p-4 flex justify-between items-center border-b border-gray-700">
-            <h2 class="font-bold text-lg tracking-wide">Galveston Cameras</h2>
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700 cursor-pointer">◀</button>
+    <div id="clock">--:--:--</div>
+
+    <header>
+        <h1>Galveston Matrix</h1>
+        <div class="controls">
+            <button class="btn" onclick="location.reload()">Refresh All</button>
+            <button class="btn" id="cycle-btn" onclick="toggleCycle()">Auto-Cycle: OFF</button>
+            <button class="btn" onclick="toggleFS()">Fullscreen</button>
+            <button class="btn active" id="btn-tv" onclick="show('tv')">Cinema</button>
+            <button class="btn" id="btn-grid" onclick="show('grid')">Multi-View</button>
+            <button class="btn" id="btn-weather" onclick="show('weather')">Weather</button>
         </div>
-        <div class="p-2 bg-gray-850 text-xs text-gray-400 border-b border-gray-700 text-center select-none">
-            Click a camera below, then click an empty slot to load it.
-        </div>
-        <div id="cam-list" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <!-- Populated via JS -->
-        </div>
+    </header>
+
+    <div id="panel-tv" class="view-panel">
+        <video id="tv-player" class="video-js" controls autoplay muted></video>
     </div>
 
-    <!-- Collapsed Trigger -->
-    <button id="sidebar-trigger" onclick="toggleSidebar()" class="hidden bg-gray-800 text-gray-400 hover:text-white p-3 h-screen border-r border-gray-700 flex items-center justify-center cursor-pointer">
-        ▶
-    </button>
-
-    <!-- MAIN DASHBOARD PANEL -->
-    <div class="flex-1 flex flex-col min-w-0">
-        <header class="bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center">
-            <div class="flex items-center space-x-4">
-                <span class="text-sm font-medium text-gray-400">Layout Preference:</span>
-                <select id="layout-select" onchange="changeLayout(this.value)" class="bg-gray-700 text-white px-3 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-                    <option value="4">4 Cameras (2x2)</option>
-                    <option value="6">6 Cameras (3x2)</option>
-                    <option value="8">8 Cameras (4x2)</option>
-                </select>
-            </div>
-            <button onclick="clearDashboard()" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-1.5 rounded transition cursor-pointer">
-                Clear All Slots
-            </button>
-        </header>
-
-        <main id="dashboard-grid" class="flex-1 p-4 grid gap-4 overflow-y-auto bg-gray-950">
-            <!-- Grid Slots Injected via JS -->
-        </main>
+    <div id="panel-grid" class="view-panel hidden">
+        <div class="grid" id="grid-container"></div>
     </div>
 
+    <div id="panel-weather" class="view-panel hidden">
+        <iframe src="https://wttr.in/Galveston?m&2&F&transparency=150" style="width:100%; height:500px; border:none;"></iframe>
+    </div>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.js"></script>
     <script>
-        // Verified Public Embed URLs for Galveston Camera Feeds
-        const cameraData = [
-            { 
-                id: "babe-beach", 
-                group: "Beaches", 
-                name: "Babe's Beach Cam", 
-                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
-            },
-            { 
-                id: "seawall-61st", 
-                group: "Beaches", 
-                name: "61st and Seawall Surf", 
-                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
-            },
-            { 
-                id: "pleasure-pier", 
-                group: "Beaches", 
-                name: "Pleasure Pier View", 
-                url: "https://www.youtube.com/embed/live_stream?channel=UC4gK8Sst9fS3G7b_eF9Wf_g" 
-            },
-            { 
-                id: "cruise-pad", 
-                group: "Port and Harbor", 
-                name: "Galveston Cruise Cam", 
-                url: "https://www.youtube.com/embed/live_stream?channel=UCf8bV7Zsh3fS_HwKbeVvX7A" 
-            },
-            { 
-                id: "harbor-cam", 
-                group: "Port and Harbor", 
-                name: "Galveston Harbor (EarthCam)", 
-                url: "https://www.earthcam.com/vjs/templates/embed.php?id=galveston" 
-            },
-            { 
-                id: "bolivar-ferry", 
-                group: "Port and Harbor", 
-                name: "Bolivar Ferry Landing", 
-                url: "https://www.youtube.com/embed/live_stream?channel=UCf8bV7Zsh3fS_HwKbeVvX7A" 
-            }
+        const channels = [
+            { name: "Skycam North", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "Skycam South", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.yykibrj.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "Seawall (Beach View)", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "Seawall 28th St", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "Downtown Square", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qlyfdf9.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "Harbor House", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "61st & Seawall", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qghrexk.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" },
+            { name: "East Beach Overlook", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.odojbkb.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8" }
         ];
 
-        let selectedCamId = null;
+        function show(m) {
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById('panel-'+m).classList.remove('hidden');
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-'+m).classList.add('active');
+            if(m === 'grid') buildGrid();
+        }
 
-        function initSidebar() {
-            const container = document.getElementById('cam-list');
-            container.innerHTML = '';
-
-            const groups = {};
-            cameraData.forEach(cam => {
-                if (!groups[cam.group]) groups[cam.group] = [];
-                groups[cam.group].push(cam);
+        function buildGrid() {
+            const cont = document.getElementById('grid-container');
+            cont.innerHTML = '';
+            channels.forEach((c, i) => {
+                cont.innerHTML += `<div class="video-container"><h4>${c.name}</h4><video id="v${i}" class="video-js" controls autoplay muted><source src="${c.url}" type="application/x-mpegURL"></video></div>`;
             });
-
-            Object.keys(groups).forEach(groupName => {
-                const groupWrapper = document.createElement('div');
-                groupWrapper.className = "space-y-1.5";
-                
-                const heading = document.createElement('h3');
-                heading.className = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 select-none pl-1";
-                heading.innerText = groupName;
-                groupWrapper.appendChild(heading);
-
-                groups[groupName].forEach(cam => {
-                    const card = document.createElement('div');
-                    card.id = `cam-${cam.id}`;
-                    card.className = "bg-gray-700 border border-gray-600 rounded p-2.5 cursor-pointer hover:bg-gray-600 transition truncate text-sm font-medium shadow select-none";
-                    card.innerText = cam.name;
-                    card.onclick = () => selectCamera(cam.id);
-                    groupWrapper.appendChild(card);
-                });
-
-                container.appendChild(groupWrapper);
-            });
+            channels.forEach((c, i) => videojs('v'+i));
         }
 
-        function selectCamera(id) {
-            if (selectedCamId) {
-                document.getElementById(`cam-${selectedCamId}`)?.classList.remove('selected-cam');
-            }
-            if (selectedCamId === id) {
-                selectedCamId = null; 
-            } else {
-                selectedCamId = id;
-                document.getElementById(`cam-${id}`).classList.add('selected-cam');
+        let cycle = null;
+        function toggleCycle() {
+            if(cycle) { clearInterval(cycle); cycle = null; document.getElementById('cycle-btn').innerText = "Auto-Cycle: OFF"; }
+            else { 
+                let i = 0;
+                cycle = setInterval(() => {
+                    const p = videojs('tv-player');
+                    p.src({src: channels[i].url, type: 'application/x-mpegURL'});
+                    p.play();
+                    i = (i + 1) % channels.length;
+                }, 60000); 
+                document.getElementById('cycle-btn').innerText = "Auto-Cycle: ON";
             }
         }
 
-        function changeLayout(slots) {
-            const grid = document.getElementById('dashboard-grid');
-            grid.innerHTML = ''; 
-
-            grid.className = "flex-1 p-4 grid gap-4 overflow-y-auto bg-gray-950";
-            if (slots == 4) grid.classList.add('grid-cols-2', 'grid-rows-2');
-            if (slots == 6) grid.classList.add('grid-cols-3', 'grid-rows-2');
-            if (slots == 8) grid.classList.add('grid-cols-4', 'grid-rows-2');
-
-            for (let i = 0; i < slots; i++) {
-                const slot = document.createElement('div');
-                slot.className = "bg-gray-800 border border-gray-700 hover:border-gray-500 rounded-lg flex items-center justify-center relative overflow-hidden group min-h-[150px] cursor-pointer transition-colors";
-                slot.innerHTML = `<span class="text-gray-500 text-sm select-none">Click sidebar camera, then click here</span>`;
-                
-                slot.onclick = () => {
-                    if (selectedCamId) {
-                        const cam = cameraData.find(c => c.id === selectedCamId);
-                        loadCamIntoSlot(slot, cam);
-                        document.getElementById(`cam-${selectedCamId}`).classList.remove('selected-cam');
-                        selectedCamId = null;
-                    }
-                };
-
-                grid.appendChild(slot);
-            }
-        }
-
-        function loadCamIntoSlot(slot, cam) {
-            slot.innerHTML = `
-                <iframe src="${cam.url}" class="w-full h-full border-0 absolute inset-0 bg-black" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-                <div class="absolute bottom-0 left-0 right-0 bg-black/85 p-2 text-xs flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 select-none">
-                    <span class="font-semibold text-gray-200">${cam.name}</span>
-                    <button onclick="clearSlot(event, this)" class="text-red-400 hover:text-red-300 font-bold px-1.5 py-0.5 rounded hover:bg-red-950/50 cursor-pointer">✕ Remove</button>
-                </div>
-            `;
-            slot.onclick = null; 
-        }
-
-        function clearSlot(event, button) {
-            event.stopPropagation(); 
-            const slot = button.closest('div').parentElement;
-            slot.innerHTML = `<span class="text-gray-500 text-sm select-none">Click sidebar camera, then click here</span>`;
-            
-            slot.onclick = () => {
-                if (selectedCamId) {
-                    const cam = cameraData.find(c => c.id === selectedCamId);
-                    loadCamIntoSlot(slot, cam);
-                    document.getElementById(`cam-${selectedCamId}`).classList.remove('selected-cam');
-                    selectedCamId = null;
-                }
-            };
-        }
-
-        function clearDashboard() {
-            const slots = document.getElementById('layout-select').value;
-            changeLayout(slots);
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const trigger = document.getElementById('sidebar-trigger');
-            
-            if (sidebar.classList.contains('w-80')) {
-                sidebar.className = "w-0 overflow-hidden border-r-0";
-                trigger.classList.remove('hidden');
-            } else {
-                sidebar.className = "w-80 bg-gray-800 flex flex-col transition-all duration-300 border-r border-gray-700";
-                trigger.classList.add('hidden');
-            }
-        }
-
-        initSidebar();
-        changeLayout(4);
+        setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString(), 1000);
+        function toggleFS() { !document.fullscreenElement ? document.documentElement.requestFullscreen() : document.exitFullscreen(); }
+        videojs('tv-player').src({ src: channels[0].url, type: 'application/x-mpegURL' });
     </script>
 </body>
 </html>
