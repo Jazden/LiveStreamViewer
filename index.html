@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galveston Live Cam Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .selected-cam { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.2) !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex h-screen overflow-hidden font-sans">
+
+    <div id="sidebar" class="w-80 bg-gray-800 flex flex-col transition-all duration-300 border-r border-gray-700">
+        <div class="p-4 flex justify-between items-center border-b border-gray-700">
+            <h2 class="font-bold text-lg tracking-wide">Galveston Cameras</h2>
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700 cursor-pointer">◀</button>
+        </div>
+        <div class="p-2 bg-gray-850 text-xs text-gray-400 border-b border-gray-700 text-center select-none">
+            Click a camera below, then click an empty slot to load it.
+        </div>
+        <div id="cam-list" class="flex-1 overflow-y-auto p-4 space-y-4">
+            </div>
+    </div>
+
+    <button id="sidebar-trigger" onclick="toggleSidebar()" class="hidden bg-gray-800 text-gray-400 hover:text-white p-3 h-screen border-r border-gray-700 flex items-center justify-center cursor-pointer">
+        ▶
+    </button>
+
+    <div class="flex-1 flex flex-col min-w-0">
+        <header class="bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-medium text-gray-400">Layout Preference:</span>
+                <select id="layout-select" onchange="changeLayout(this.value)" class="bg-gray-700 text-white px-3 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
+                    <option value="4">4 Cameras (2x2)</option>
+                    <option value="6">6 Cameras (3x2)</option>
+                    <option value="8">8 Cameras (4x2)</option>
+                    <option value="12">12 Cameras (4x3)</option>
+                </select>
+            </div>
+            <button onclick="clearDashboard()" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-1.5 rounded transition cursor-pointer">
+                Clear All Slots
+            </button>
+        </header>
+
+        <main id="dashboard-grid" class="flex-1 p-4 grid gap-4 overflow-y-auto bg-gray-950">
+            </main>
+    </div>
+
+    <script>
+        // Permanent Ozolio Embed Stream Data Configuration
+			const cameraData = [
+		{ id: "babe", group: "Beach", name: "Babe's Beach", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.vzcxdtz&app_mode=control" },
+		{ id: "seawall-beach", group: "Beach", name: "Seawall Beach (28th St)", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.ranl5w&app_mode=control" },
+		{ id: "east-beach", group: "Beach", name: "East Beach", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.odojbkb&app_mode=control" },
+		{ id: "61st-seawall", group: "Beach", name: "61st and Seawall", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.qghrexk&app_mode=control" },
+		{ id: "historic-downtown", group: "Downtown", name: "Historic Downtown", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.qlyfdf9&app_mode=control" },
+		{ id: "galveston-harbor", group: "Downtown", name: "Galveston Harbor Cruise Cam", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.zcsqd9k&app_mode=control" },
+		{ id: "north-skycam", group: "Downtown", name: "Galveston North SkyCam", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.fjfebpl&app_mode=control" },
+		{ id: "south-skycam", group: "Downtown", name: "Galveston South SkyCam", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.yykibrj&app_mode=control" },
+		{ id: "moody-pyramid", group: "Moody Gardens", name: "Moody Gardens Pyramid", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.rizld68&app_mode=control" },
+		{ id: "moody-penguin", group: "Moody Gardens", name: "Moody Gardens Penguin Habitat", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.fownd7c&app_mode=control" },
+		{ id: "moody-aquarium", group: "Moody Gardens", name: "Moody Gardens Aquarium", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.aqhtbre&app_mode=control" },
+		{ id: "moody-rainforest", group: "Moody Gardens", name: "Moody Gardens Rainforest", url: "https://relay.ozolio.com/pub.cgi?cmd=iframe&oid=relay01.duzcd7h&app_mode=control" }
+	];
+
+        let selectedCamId = null;
+
+        // Group cameras and render sidebar
+        function initSidebar() {
+            const container = document.getElementById('cam-list');
+            container.innerHTML = '';
+
+            // Group data dynamically
+            const groups = {};
+            cameraData.forEach(cam => {
+                if (!groups[cam.group]) groups[cam.group] = [];
+                groups[cam.group].push(cam);
+            });
+
+            // Build structural components
+            Object.keys(groups).forEach(groupName => {
+                const groupWrapper = document.createElement('div');
+                groupWrapper.className = "space-y-1.5";
+                
+                const heading = document.createElement('h3');
+                heading.className = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 select-none pl-1";
+                heading.innerText = groupName;
+                groupWrapper.appendChild(heading);
+
+                groups[groupName].forEach(cam => {
+                    const card = document.createElement('div');
+                    card.id = `cam-${cam.id}`;
+                    card.className = "bg-gray-700 border border-gray-600 rounded p-2.5 cursor-pointer hover:bg-gray-600 transition truncate text-sm font-medium shadow select-none";
+                    card.innerText = cam.name;
+                    card.onclick = () => selectCamera(cam.id);
+                    groupWrapper.appendChild(card);
+                });
+
+                container.appendChild(groupWrapper);
+            });
+        }
+
+        function selectCamera(id) {
+            if (selectedCamId) {
+                document.getElementById(`cam-${selectedCamId}`)?.classList.remove('selected-cam');
+            }
+            if (selectedCamId === id) {
+                selectedCamId = null; 
+            } else {
+                selectedCamId = id;
+                document.getElementById(`cam-${id}`).classList.add('selected-cam');
+            }
+        }
+
+        // Build grid framework slots
+        function changeLayout(slots) {
+            const grid = document.getElementById('dashboard-grid');
+            grid.innerHTML = ''; 
+
+            grid.className = "flex-1 p-4 grid gap-4 overflow-y-auto bg-gray-950";
+            if (slots == 4) grid.classList.add('grid-cols-2', 'grid-rows-2');
+            if (slots == 6) grid.classList.add('grid-cols-3', 'grid-rows-2');
+            if (slots == 8) grid.classList.add('grid-cols-4', 'grid-rows-2');
+            if (slots == 12) grid.classList.add('grid-cols-4', 'grid-rows-3');
+
+            for (let i = 0; i < slots; i++) {
+                const slot = document.createElement('div');
+                slot.className = "bg-gray-800 border border-gray-700 hover:border-gray-500 rounded-lg flex items-center justify-center relative overflow-hidden group min-h-[150px] cursor-pointer transition-colors";
+                slot.innerHTML = `<span class="text-gray-500 text-sm select-none">Click sidebar camera, then click here</span>`;
+                
+                slot.onclick = () => {
+                    if (selectedCamId) {
+                        const cam = cameraData.find(c => c.id === selectedCamId);
+                        loadCamIntoSlot(slot, cam);
+                        document.getElementById(`cam-${selectedCamId}`).classList.remove('selected-cam');
+                        selectedCamId = null;
+                    }
+                };
+
+                grid.appendChild(slot);
+            }
+        }
+
+        // Mount iframe instance into chosen node container
+        function loadCamIntoSlot(slot, cam) {
+            slot.innerHTML = `
+                <iframe src="${cam.url}" class="w-full h-full border-0 absolute inset-0 bg-black animate-fade-in" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <div class="absolute bottom-0 left-0 right-0 bg-black/85 p-2 text-xs flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 select-none">
+                    <span class="font-semibold text-gray-200">${cam.name}</span>
+                    <button onclick="clearSlot(event, this)" class="text-red-400 hover:text-red-300 font-bold px-1.5 py-0.5 rounded hover:bg-red-950/50 cursor-pointer">✕ Remove</button>
+                </div>
+            `;
+            slot.onclick = null; 
+        }
+
+        function clearSlot(event, button) {
+            event.stopPropagation(); 
+            const slot = button.closest('div').parentElement;
+            slot.innerHTML = `<span class="text-gray-500 text-sm select-none">Click sidebar camera, then click here</span>`;
+            
+            slot.onclick = () => {
+                if (selectedCamId) {
+                    const cam = cameraData.find(c => c.id === selectedCamId);
+                    loadCamIntoSlot(slot, cam);
+                    document.getElementById(`cam-${selectedCamId}`).classList.remove('selected-cam');
+                    selectedCamId = null;
+                }
+            };
+        }
+
+        function clearDashboard() {
+            const slots = document.getElementById('layout-select').value;
+            changeLayout(slots);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const trigger = document.getElementById('sidebar-trigger');
+            
+            if (sidebar.classList.contains('w-80')) {
+                sidebar.className = "w-0 overflow-hidden border-r-0";
+                trigger.classList.remove('hidden');
+            } else {
+                sidebar.className = "w-80 bg-gray-800 flex flex-col transition-all duration-300 border-r border-gray-700";
+                trigger.classList.add('hidden');
+            }
+        }
+
+        // Render runtime initial layout setups
+        initSidebar();
+        changeLayout(4);
+    </script>
+</body>
+</html>
