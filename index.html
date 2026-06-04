@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.0.8">
+    <link rel="stylesheet" href="style.css?v=1.0.9">
 </head>
 <body>
 
@@ -97,8 +97,14 @@
                     <div class="sidebar-list" id="sidebar-streams-list">
                         <!-- Generated Dynamically -->
                     </div>
+                    <!-- Trashcan drop zone -->
+                    <div id="sidebar-trashcan" class="sidebar-trashcan" ondragover="handleTrashcanDragOver(event)" ondragleave="handleTrashcanDragLeave(event)" ondrop="handleTrashcanDrop(event)">
+                        <span class="trashcan-icon">🗑️</span>
+                        <span class="trashcan-text">Drag here to delete / deactivate</span>
+                    </div>
+
                     <!-- Add Custom Stream Sticky Footer -->
-                    <div class="sidebar-footer" style="padding: 12px; border-top: 1px solid var(--border-color); background: rgba(10, 15, 30, 0.45);">
+                    <div class="sidebar-footer" style="padding: 12px; border-top: 1px solid var(--border-color); background: rgba(10, 15, 30, 0.455);">
                         <button class="btn" onclick="openSettingsToTab('tab-streams')" style="width: 100%; justify-content: center; font-size: 0.75rem; padding: 7px 10px; display: flex; align-items: center; gap: 4px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Add Custom Stream
@@ -360,6 +366,6 @@
     <!-- Default Streams Data -->
     <script src="streams.js"></script>
     
-    <script src="app.js?v=1.0.7"></script>
+    <script src="app.js?v=1.0.8"></script>
 </body>
 </html>

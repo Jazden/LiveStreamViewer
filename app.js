@@ -572,6 +572,7 @@
             if (container) {
                 container.classList.add('dragging-active');
             }
+            document.body.classList.add('dragging-active');
             
             const card = document.getElementById(`card-${streamId}`);
             if (card) card.classList.add('dragging');
@@ -586,6 +587,7 @@
             if (container) {
                 container.classList.add('dragging-active');
             }
+            document.body.classList.add('dragging-active');
             
             const item = document.getElementById(`sidebar-item-${streamId}`);
             if (item) item.classList.add('dragging');
@@ -623,6 +625,7 @@
                 container.classList.remove('drag-over');
                 container.classList.remove('dragging-active');
             }
+            document.body.classList.remove('dragging-active');
         }
 
         function handleSidebarDragEnd(e) {
@@ -636,8 +639,46 @@
                 container.classList.remove('drag-over');
                 container.classList.remove('dragging-active');
             }
+            document.body.classList.remove('dragging-active');
             dragSourceId = null;
         }
+
+        function handleTrashcanDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            e.currentTarget.classList.add('drag-over');
+            return false;
+        }
+
+        function handleTrashcanDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleTrashcanDrop(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            if (dragSourceId) {
+                const stream = appState.streams.find(s => s.id === dragSourceId);
+                if (stream) {
+                    if (stream.isDefault) {
+                        // Deactivate default/system stream (hide from active view)
+                        toggleStreamActive(dragSourceId, false);
+                    } else {
+                        // Delete custom stream completely
+                        deleteStream(dragSourceId);
+                    }
+                }
+            }
+            return false;
+        }
+
+        window.handleTrashcanDragOver = handleTrashcanDragOver;
+        window.handleTrashcanDragLeave = handleTrashcanDragLeave;
+        window.handleTrashcanDrop = handleTrashcanDrop;
 
         function handleGridDragOver(e) {
             if (e.preventDefault) {
