@@ -1939,13 +1939,15 @@
                         <div class="wc-header">
                             <div>
                                 <div class="wc-location">${appState.location}</div>
-                                <div class="wc-current-desc">${desc}</div>
                             </div>
                             <div style="text-align: right;">
                                 <div class="wc-current-temp">${temp}°F</div>
                             </div>
                         </div>
-                        <div class="wc-divider"></div>
+                        <div class="wc-current-center">
+                            <span class="wc-cc-icon">${emoji}</span>
+                            <span class="wc-cc-desc">${desc}</span>
+                        </div>
                         <div class="wc-forecast-grid">
                             ${forecastHtml}
                         </div>
