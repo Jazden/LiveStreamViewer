@@ -1093,6 +1093,180 @@
             box-shadow: 0 0 15px var(--accent-glow) !important;
             transform: scale(0.99);
         }
+
+        /* Weather Forecast Section Styling */
+        .weather-forecast-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        @media (min-width: 768px) {
+            .weather-forecast-container {
+                grid-template-columns: 320px 1fr;
+            }
+        }
+
+        .weather-current-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: fit-content;
+            backdrop-filter: blur(16px);
+        }
+
+        .weather-current-city {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .weather-current-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .weather-current-icon {
+            font-size: 4rem;
+            line-height: 1;
+        }
+
+        .weather-current-temp-block {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .weather-current-temp {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.1;
+        }
+
+        .weather-current-desc {
+            font-size: 1rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .weather-current-details {
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .weather-detail-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+
+        .wd-label {
+            color: var(--text-muted);
+        }
+
+        .wd-val {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .weather-daily-forecast {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+        }
+
+        .forecast-section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .weather-daily-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .weather-daily-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .weather-daily-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--accent);
+            transform: translateX(2px);
+        }
+
+        .wdi-day {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            width: 100px;
+        }
+
+        .wdi-icon-desc {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-grow: 1;
+        }
+
+        .wdi-emoji {
+            font-size: 1.5rem;
+            width: 30px;
+            text-align: center;
+        }
+
+        .wdi-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .wdi-temps {
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            gap: 10px;
+        }
+
+        .wdi-temp-max {
+            color: var(--text-main);
+        }
+
+        .wdi-temp-min {
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -1101,11 +1275,13 @@
     <header>
         <div class="brand">
             <div class="status-dot"></div>
-            <h1 id="brand-title">Galveston Matrix</h1>
+            <h1 id="brand-title">Live Stream Viewer</h1>
         </div>
 
         <!-- Weather & Time Dashboard -->
         <div class="info-dashboard">
+            <div class="info-item" id="header-location">Detecting Location...</div>
+            <div class="info-divider"></div>
             <div class="info-item highlight" id="weather-badge">Loading Weather...</div>
             <div class="info-divider"></div>
             <div class="info-item" id="clock">--:--:--</div>
@@ -1137,7 +1313,7 @@
                 <span>Streams Sidebar</span>
             </button>
 
-            <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Map</button>
+            <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Forecast</button>
             
             <!-- Settings Gear Button -->
             <button class="btn" onclick="openSettings()" title="Configuration Settings">
@@ -1174,9 +1350,42 @@
             </div>
         </div>
 
-        <!-- Full Weather Map Panel -->
+        <!-- Full Weather Forecast Panel -->
         <div id="panel-weather" class="view-panel hidden">
-            <iframe src="https://wttr.in/Galveston?m&2&F&transparency=150" style="width:100%; height:100%; border:none;"></iframe>
+            <div class="weather-forecast-container">
+                <div class="weather-current-card">
+                    <div class="weather-current-city" id="wf-city">Detecting Location...</div>
+                    <div class="weather-current-row">
+                        <div class="weather-current-icon" id="wf-current-icon">☀️</div>
+                        <div class="weather-current-temp-block">
+                            <div class="weather-current-temp" id="wf-temp">--°F</div>
+                            <div class="weather-current-desc" id="wf-desc">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="weather-current-details">
+                        <div class="weather-detail-item">
+                            <span class="wd-label">Wind</span>
+                            <span class="wd-val" id="wf-wind">--</span>
+                        </div>
+                        <div class="weather-detail-item">
+                            <span class="wd-label">Humidity</span>
+                            <span class="wd-val" id="wf-humidity">--</span>
+                        </div>
+                        <div class="weather-detail-item">
+                            <span class="wd-label">High / Low</span>
+                            <span class="wd-val" id="wf-highlow">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="weather-daily-forecast">
+                    <h3 class="forecast-section-title">7-Day Forecast</h3>
+                    <div class="weather-daily-grid" id="wf-daily-grid">
+                        <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                            Loading Forecast details...
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -1387,18 +1596,6 @@
             const savedLayout = getCookie('stream_layout');
             if (savedLayout) appState.layout = savedLayout;
             
-            // Load location & timezone
-            const savedLocation = getCookie('location_config');
-            if (savedLocation) {
-                try {
-                    const loc = JSON.parse(savedLocation);
-                    appState.location = loc.location || "Galveston";
-                    appState.timezone = loc.timezone || "America/Chicago";
-                } catch (e) {
-                    console.error('Error parsing location config cookie', e);
-                }
-            }
-            
             // Load user configured streams
             let userStreams = [];
             const savedUserStreams = getCookie('user_streams');
@@ -1463,11 +1660,6 @@
             
             appState.streams = streams;
             
-            // Setup dynamic header info
-            updateHeaderLocation();
-            updateWeatherBadge(appState.location);
-            renderWeatherPanel();
-            
             // Setup API script tags
             loadThirdPartyAPIs();
             
@@ -1490,6 +1682,9 @@
                 }
             }
             renderSidebarStreams();
+
+            // Asynchronously initialize location and weather
+            initLocationAndWeather();
         }
 
         // Load Youtube and Twitch Embed scripts
@@ -1517,7 +1712,8 @@
 
         // Header location updates
         function updateHeaderLocation() {
-            document.getElementById('brand-title').innerText = `${appState.location} Matrix`;
+            const locEl = document.getElementById('header-location');
+            if (locEl) locEl.innerText = appState.location;
             document.getElementById('location-input').value = appState.location;
             document.getElementById('timezone-select').value = appState.timezone;
         }
@@ -1634,12 +1830,180 @@
             return descriptions[code] || "Weather Normal";
         }
 
-        // Weather iframe panel load
-        function renderWeatherPanel() {
-            const iframe = document.querySelector('#panel-weather iframe');
-            if (iframe) {
-                iframe.src = `https://wttr.in/${encodeURIComponent(appState.location)}?m&2&F&transparency=150`;
+        function initLocationAndWeather() {
+            const savedLocation = getCookie('location_config');
+            if (savedLocation) {
+                try {
+                    const loc = JSON.parse(savedLocation);
+                    appState.location = loc.location || "Galveston";
+                    appState.timezone = loc.timezone || "America/Chicago";
+                    
+                    updateHeaderLocation();
+                    updateWeatherBadge(appState.location);
+                    renderWeatherPanel();
+                } catch (e) {
+                    console.error('Error parsing location config cookie', e);
+                    detectIpLocation();
+                }
+            } else {
+                detectIpLocation();
             }
+        }
+
+        function detectIpLocation() {
+            fetch('https://ipapi.co/json/')
+                .then(response => {
+                    if (!response.ok) throw new Error('IP geolocation failed');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.city) {
+                        const stateStr = data.region_code ? `, ${data.region_code}` : '';
+                        appState.location = `${data.city}${stateStr}`;
+                        appState.timezone = data.timezone || "America/Chicago";
+                    } else {
+                        appState.location = "Galveston";
+                        appState.timezone = "America/Chicago";
+                    }
+                    updateHeaderLocation();
+                    updateWeatherBadge(appState.location);
+                    renderWeatherPanel();
+                })
+                .catch(err => {
+                    console.warn('IP geolocation error, falling back to Galveston:', err);
+                    appState.location = "Galveston";
+                    appState.timezone = "America/Chicago";
+                    updateHeaderLocation();
+                    updateWeatherBadge(appState.location);
+                    renderWeatherPanel();
+                });
+        }
+
+        function getWeatherEmoji(code) {
+            const emojis = {
+                0: "☀️", // Clear
+                1: "🌤️", // Mainly Clear
+                2: "⛅", // Partly Cloudy
+                3: "☁️", // Overcast
+                45: "🌫️", // Foggy
+                48: "🌫️", // Rime Fog
+                51: "🌧️", // Light Drizzle
+                53: "🌧️", // Moderate Drizzle
+                55: "🌧️", // Dense Drizzle
+                56: "🥶", // Freezing Drizzle
+                57: "🥶",
+                61: "🌧️", // Slight Rain
+                63: "🌧️", // Moderate Rain
+                65: "🌧️", // Heavy Rain
+                66: "🌧️", // Freezing Rain
+                67: "🌧️",
+                71: "❄️", // Snowfall
+                73: "❄️",
+                75: "❄️",
+                77: "❄️",
+                80: "🌦️", // Rain Showers
+                81: "🌦️",
+                82: "⛈️",
+                85: "❄️", // Snow Showers
+                86: "❄️",
+                95: "🌩️", // Thunderstorm
+                96: "⛈️",
+                99: "⛈️"
+            };
+            return emojis[code] || "☀️";
+        }
+
+        // Weather full details forecast panel load
+        function renderWeatherPanel() {
+            const cityName = appState.location.split(',')[0].trim();
+            
+            // Geocode first, then get forecast
+            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Geocoding failed');
+                    return response.json();
+                })
+                .then(geoData => {
+                    if (!geoData.results || geoData.results.length === 0) {
+                        throw new Error('City not found');
+                    }
+                    const result = geoData.results[0];
+                    const lat = result.latitude;
+                    const lon = result.longitude;
+                    
+                    // Fetch full weather details
+                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`);
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error('Forecast failed');
+                    return response.json();
+                })
+                .then(data => {
+                    // Populate current weather details
+                    const cityEl = document.getElementById('wf-city');
+                    if (cityEl) cityEl.innerText = appState.location;
+                    
+                    const tempEl = document.getElementById('wf-temp');
+                    if (tempEl) tempEl.innerText = `${Math.round(data.current.temperature_2m)}°F`;
+                    
+                    const descEl = document.getElementById('wf-desc');
+                    if (descEl) descEl.innerText = getWeatherDescription(data.current.weather_code);
+                    
+                    const iconEl = document.getElementById('wf-current-icon');
+                    if (iconEl) iconEl.innerText = getWeatherEmoji(data.current.weather_code);
+                    
+                    const windEl = document.getElementById('wf-wind');
+                    if (windEl) windEl.innerText = `${Math.round(data.current.wind_speed_10m)} mph`;
+                    
+                    const humidityEl = document.getElementById('wf-humidity');
+                    if (humidityEl) humidityEl.innerText = `${data.current.relative_humidity_2m}%`;
+                    
+                    const high = Math.round(data.daily.temperature_2m_max[0]);
+                    const low = Math.round(data.daily.temperature_2m_min[0]);
+                    const highlowEl = document.getElementById('wf-highlow');
+                    if (highlowEl) highlowEl.innerText = `${high}° / ${low}°`;
+                    
+                    // Populate daily forecast list
+                    const dailyGrid = document.getElementById('wf-daily-grid');
+                    if (dailyGrid) {
+                        dailyGrid.innerHTML = '';
+                        
+                        // Loop through 7 days (starting tomorrow)
+                        for (let i = 1; i < data.daily.time.length; i++) {
+                            const dateStr = data.daily.time[i];
+                            const dateObj = new Date(dateStr + 'T00:00:00');
+                            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                            
+                            const code = data.daily.weather_code[i];
+                            const emoji = getWeatherEmoji(code);
+                            const desc = getWeatherDescription(code);
+                            const maxTemp = Math.round(data.daily.temperature_2m_max[i]);
+                            const minTemp = Math.round(data.daily.temperature_2m_min[i]);
+                            
+                            const item = document.createElement('div');
+                            item.className = 'weather-daily-item';
+                            item.innerHTML = `
+                                <div class="wdi-day">${dayName}</div>
+                                <div class="wdi-icon-desc">
+                                    <span class="wdi-emoji">${emoji}</span>
+                                    <span class="wdi-desc">${desc}</span>
+                                </div>
+                                <div class="wdi-temps">
+                                    <span class="wdi-temp-max">${maxTemp}°</span>
+                                    <span class="wdi-temp-min">${minTemp}°</span>
+                                </div>
+                            `;
+                            dailyGrid.appendChild(item);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Error rendering weather forecast:', err);
+                    const cityEl = document.getElementById('wf-city');
+                    if (cityEl) cityEl.innerText = appState.location;
+                    const descEl = document.getElementById('wf-desc');
+                    if (descEl) descEl.innerText = "Forecast Unavailable";
+                });
         }
 
         // Drag and Drop implementation
