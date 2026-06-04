@@ -809,7 +809,7 @@
         }
 
         .streams-table tr:hover {
-            background: rgba(255, 255, 0.02);
+            background: rgba(6, 182, 212, 0.06);
         }
 
         .td-stream-url {
