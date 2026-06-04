@@ -765,6 +765,334 @@
             line-height: 1.6;
             margin-bottom: 15px;
         }
+
+        /* App Layout Flex Container */
+        .app-layout-container {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Sidebar Container */
+        .sidebar {
+            width: 280px;
+            background: rgba(10, 15, 30, 0.6);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            border-right-color: transparent;
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-collapse-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-collapse-btn:hover {
+            color: var(--accent);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-search-container {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-search-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .sidebar-search-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* Customize scrollbar for sidebar */
+        .sidebar-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        .sidebar-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Sidebar Item Card */
+        .sidebar-item {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            cursor: grab;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            user-select: none;
+        }
+
+        .sidebar-item:active {
+            cursor: grabbing;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(30, 41, 59, 0.5);
+            border-color: rgba(56, 189, 248, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar-item.dragging {
+            opacity: 0.4;
+            border-style: dashed;
+            border-color: var(--accent);
+        }
+
+        .sidebar-item.active-in-grid {
+            border-left: 3px solid var(--accent);
+            background: rgba(56, 189, 248, 0.05);
+        }
+
+        .sidebar-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-item-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-item-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .sidebar-item-badge.hls {
+            background: rgba(234, 88, 12, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(234, 88, 12, 0.3);
+        }
+
+        .sidebar-item-badge.youtube {
+            background: rgba(220, 38, 38, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+
+        .sidebar-item-badge.twitch {
+            background: rgba(147, 51, 234, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(147, 51, 234, 0.3);
+        }
+
+        .sidebar-item-badge.iframe {
+            background: rgba(13, 148, 136, 0.15);
+            color: #2dd4bf;
+            border: 1px solid rgba(13, 148, 136, 0.3);
+        }
+
+        .sidebar-item-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2px;
+        }
+
+        .sidebar-item-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 160px;
+        }
+
+        .sidebar-item-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Toggle switch style inside sidebar items */
+        .sidebar-switch {
+            position: relative;
+            display: inline-block;
+            width: 28px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .sidebar-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .sidebar-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .2s;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .sidebar-slider:before {
+            position: absolute;
+            content: "";
+            height: 10px;
+            width: 10px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--text-muted);
+            transition: .2s;
+            border-radius: 50%;
+        }
+
+        .sidebar-switch input:checked + .sidebar-slider {
+            background-color: rgba(56, 189, 248, 0.2);
+            border-color: var(--accent);
+        }
+
+        .sidebar-switch input:checked + .sidebar-slider:before {
+            transform: translateX(12px);
+            background-color: var(--accent);
+        }
+
+        /* Collapsed Sidebar Handle */
+        .sidebar-toggle-handle {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 50px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 9;
+            transition: all 0.2s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sidebar-toggle-handle:hover {
+            background: var(--bg-surface-hover);
+            color: var(--accent);
+            width: 20px;
+        }
+
+        .sidebar.collapsed + .sidebar-toggle-handle {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Adjust grid-container to fill flex */
+        #grid-container {
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-width: 0;
+            padding-left: 16px; /* give some breathing room */
+        }
+        
+        .sidebar.collapsed ~ #grid-container {
+            padding-left: 0;
+        }
+
+        /* Drag-over indicator on empty grid or cards */
+        #grid-container.drag-over {
+            border: 2px dashed var(--accent);
+            background: rgba(56, 189, 248, 0.03);
+            border-radius: 10px;
+        }
+
+        .stream-card.drag-over {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 15px var(--accent-glow) !important;
+            transform: scale(0.99);
+        }
     </style>
 </head>
 <body>
@@ -803,6 +1131,12 @@
                 </select>
             </div>
 
+            <!-- Sidebar Toggle Button -->
+            <button class="btn" id="btn-toggle-sidebar" onclick="toggleSidebar()" title="Toggle Stream Sidebar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-sidebar"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+                <span>Streams Sidebar</span>
+            </button>
+
             <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Map</button>
             
             <!-- Settings Gear Button -->
@@ -816,7 +1150,28 @@
     <main>
         <!-- Stream Panels (Cinema, Grid, etc.) -->
         <div id="panel-streams" class="view-panel">
-            <div id="grid-container" class="layout-cinema"></div>
+            <div class="app-layout-container">
+                <!-- Sidebar panel -->
+                <aside id="streams-sidebar" class="sidebar">
+                    <div class="sidebar-header">
+                        <h3 class="sidebar-title">Streams Library</h3>
+                        <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse Sidebar">&larr;</button>
+                    </div>
+                    <div class="sidebar-search-container">
+                        <input type="text" id="sidebar-search-input" placeholder="Search streams..." oninput="filterSidebarStreams()" autocomplete="off">
+                    </div>
+                    <div class="sidebar-list" id="sidebar-streams-list">
+                        <!-- Generated Dynamically -->
+                    </div>
+                </aside>
+                
+                <!-- Toggle Handle (visible when collapsed) -->
+                <div id="sidebar-toggle-handle" class="sidebar-toggle-handle" onclick="toggleSidebar()" title="Expand Sidebar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"/></svg>
+                </div>
+                
+                <div id="grid-container" class="layout-cinema" ondragover="handleGridDragOver(event)" ondragleave="handleGridDragLeave(event)" ondrop="handleGridDrop(event)"></div>
+            </div>
         </div>
 
         <!-- Full Weather Map Panel -->
@@ -932,21 +1287,10 @@
 
     <!-- Video.js HLS Javascript Library -->
     <script src="https://vjs.zencdn.net/8.10.0/video.js"></script>
+    <!-- Default Streams Data -->
+    <script src="streams.js"></script>
     
     <script>
-        // Default stream definitions
-        const defaultChannels = [
-            { name: "KHOU 11", url: "https://video.tegnaone.com/khou/live/v1/master/f9c1bf9ffd6ac86b6173a7c169ff6e3f4efbd693/KHOU-Production/live/index.m3u8", type: "hls", active: true },
-            { name: "Skycam North", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "Skycam South", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.yykibrj.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "Seawall (Beach View)", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "Seawall 28th St", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: false },
-            { name: "Downtown Square", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qlyfdf9.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "Harbor House", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "61st & Seawall", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qghrexk.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true },
-            { name: "East Beach Overlook", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.odojbkb.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", active: true }
-        ];
-
         // Capacity configuration for each layout
         const LAYOUT_CAPACITIES = {
             'cinema': 1,
@@ -1131,6 +1475,21 @@
             document.getElementById('layout-select-dropdown').value = appState.layout;
             renderActiveStreams();
             populateSettings();
+
+            // Initialize Sidebar state and contents
+            const sidebarCollapsed = getCookie('sidebar_collapsed');
+            const sidebar = document.getElementById('streams-sidebar');
+            const sidebarBtn = document.getElementById('btn-toggle-sidebar');
+            if (sidebar) {
+                if (sidebarCollapsed === '1') {
+                    sidebar.classList.add('collapsed');
+                    if (sidebarBtn) sidebarBtn.classList.remove('active');
+                } else {
+                    sidebar.classList.remove('collapsed');
+                    if (sidebarBtn) sidebarBtn.classList.add('active');
+                }
+            }
+            renderSidebarStreams();
         }
 
         // Load Youtube and Twitch Embed scripts
@@ -1219,7 +1578,30 @@
         function handleDragStart(e, streamId) {
             dragSourceId = streamId;
             e.dataTransfer.effectAllowed = 'move';
-            e.target.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', streamId);
+            
+            // Highlight target drop areas
+            const container = document.getElementById('grid-container');
+            if (container) {
+                container.classList.add('dragging-active');
+            }
+            
+            const card = document.getElementById(`card-${streamId}`);
+            if (card) card.classList.add('dragging');
+        }
+
+        function handleSidebarDragStart(e, streamId) {
+            dragSourceId = streamId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', streamId);
+            
+            const container = document.getElementById('grid-container');
+            if (container) {
+                container.classList.add('dragging-active');
+            }
+            
+            const item = document.getElementById(`sidebar-item-${streamId}`);
+            if (item) item.classList.add('dragging');
         }
 
         function handleDragOver(e) {
@@ -1249,6 +1631,57 @@
         function handleDragEnd(e) {
             e.target.classList.remove('dragging');
             document.querySelectorAll('.stream-card').forEach(c => c.classList.remove('drag-over'));
+            const container = document.getElementById('grid-container');
+            if (container) {
+                container.classList.remove('drag-over');
+                container.classList.remove('dragging-active');
+            }
+        }
+
+        function handleSidebarDragEnd(e) {
+            if (dragSourceId) {
+                const item = document.getElementById(`sidebar-item-${dragSourceId}`);
+                if (item) item.classList.remove('dragging');
+            }
+            document.querySelectorAll('.stream-card').forEach(c => c.classList.remove('drag-over'));
+            const container = document.getElementById('grid-container');
+            if (container) {
+                container.classList.remove('drag-over');
+                container.classList.remove('dragging-active');
+            }
+            dragSourceId = null;
+        }
+
+        function handleGridDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Only visual feedback if grid has no streams
+            const activeStreamsCount = appState.streams.filter(s => s.active).length;
+            if (activeStreamsCount === 0) {
+                document.getElementById('grid-container').classList.add('drag-over');
+            }
+            return false;
+        }
+
+        function handleGridDragLeave(e) {
+            document.getElementById('grid-container').classList.remove('drag-over');
+        }
+
+        function handleGridDrop(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            document.getElementById('grid-container').classList.remove('drag-over');
+            
+            if (dragSourceId) {
+                const stream = appState.streams.find(s => s.id === dragSourceId);
+                if (stream && !stream.active) {
+                    toggleStreamActive(dragSourceId, true);
+                }
+            }
+            return false;
         }
 
         function swapStreams(id1, id2) {
@@ -1256,14 +1689,114 @@
             const idx2 = appState.streams.findIndex(s => s.id === id2);
             
             if (idx1 !== -1 && idx2 !== -1) {
-                // Swap positioning
-                const temp = appState.streams[idx1];
-                appState.streams[idx1] = appState.streams[idx2];
-                appState.streams[idx2] = temp;
+                const s1 = appState.streams[idx1];
+                const s2 = appState.streams[idx2];
+                
+                if (s1.active && s2.active) {
+                    // Both are active: swap positions
+                    const temp = appState.streams[idx1];
+                    appState.streams[idx1] = appState.streams[idx2];
+                    appState.streams[idx2] = temp;
+                } else {
+                    // One is active, one is inactive (from sidebar)
+                    // Toggle active status: s1 becomes active, s2 becomes inactive
+                    const tempActive = s1.active;
+                    s1.active = s2.active;
+                    s2.active = tempActive;
+                    
+                    // Swap their positions in array
+                    const temp = appState.streams[idx1];
+                    appState.streams[idx1] = appState.streams[idx2];
+                    appState.streams[idx2] = temp;
+                    
+                    // Handle cinema active stream adjustment
+                    if (appState.layout === 'cinema') {
+                        if (!s1.active && cinemaActiveStreamId === s1.id) {
+                            cinemaActiveStreamId = s2.id;
+                        } else if (!s2.active && cinemaActiveStreamId === s2.id) {
+                            cinemaActiveStreamId = s1.id;
+                        }
+                    }
+                }
                 
                 persistState();
                 renderActiveStreams();
+                renderSidebarStreams();
                 populateSettings();
+            }
+        }
+
+        // Sidebar handlers
+        function toggleSidebar() {
+            const sidebar = document.getElementById('streams-sidebar');
+            const btn = document.getElementById('btn-toggle-sidebar');
+            if (!sidebar) return;
+            
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            if (btn) {
+                if (isCollapsed) {
+                    btn.classList.remove('active');
+                } else {
+                    btn.classList.add('active');
+                }
+            }
+            
+            setCookie('sidebar_collapsed', isCollapsed ? '1' : '0', 365);
+        }
+
+        function filterSidebarStreams() {
+            renderSidebarStreams();
+        }
+
+        function renderSidebarStreams() {
+            const listContainer = document.getElementById('sidebar-streams-list');
+            if (!listContainer) return;
+            
+            const searchInput = document.getElementById('sidebar-search-input');
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
+            listContainer.innerHTML = '';
+            
+            appState.streams.forEach(stream => {
+                if (query && !stream.name.toLowerCase().includes(query) && !stream.type.toLowerCase().includes(query)) {
+                    return;
+                }
+                
+                const item = document.createElement('div');
+                item.className = `sidebar-item ${stream.active ? 'active-in-grid' : ''}`;
+                item.id = `sidebar-item-${stream.id}`;
+                item.setAttribute('draggable', 'true');
+                item.setAttribute('ondragstart', `handleSidebarDragStart(event, '${stream.id}')`);
+                item.setAttribute('ondragend', `handleSidebarDragEnd(event)`);
+                
+                const badgeClass = stream.type.toLowerCase();
+                const displayUrl = stream.url.length > 28 ? stream.url.substring(0, 25) + '...' : stream.url;
+                
+                item.innerHTML = `
+                    <div class="sidebar-item-header">
+                        <span class="sidebar-item-name" title="${stream.name}">${stream.name}</span>
+                        <span class="sidebar-item-badge ${badgeClass}">${stream.type}</span>
+                    </div>
+                    <div class="sidebar-item-footer">
+                        <span class="sidebar-item-desc" title="${stream.url}">${displayUrl}</span>
+                        <div class="sidebar-item-controls">
+                            <label class="sidebar-switch" title="Toggle active status" onclick="event.stopPropagation()">
+                                <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="toggleStreamActive('${stream.id}', this.checked)">
+                                <span class="sidebar-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+                
+                listContainer.appendChild(item);
+            });
+            
+            if (listContainer.children.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">
+                        No streams found
+                    </div>
+                `;
             }
         }
 
@@ -1898,6 +2431,7 @@
             
             populateSettings();
             renderActiveStreams();
+            renderSidebarStreams();
         }
 
         function handleSaveLocation(event) {
@@ -2007,6 +2541,8 @@
                 }
                 
                 renderActiveStreams();
+                renderSidebarStreams();
+                populateSettings();
             }
         }
 
@@ -2024,6 +2560,7 @@
             persistState();
             populateSettings();
             renderActiveStreams();
+            renderSidebarStreams();
         }
 
         function deleteStream(id) {
@@ -2035,6 +2572,7 @@
             
             populateSettings();
             renderActiveStreams();
+            renderSidebarStreams();
         }
 
         function resetToSystemDefaults() {
