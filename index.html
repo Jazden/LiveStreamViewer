@@ -1547,23 +1547,91 @@
             const badge = document.getElementById('weather-badge');
             badge.innerText = 'Loading Weather...';
             
-            // CORS-friendly plain text format
-            fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%C+%t`)
+            // Clean up city name
+            const cityName = location.split(',')[0].trim();
+            
+            // Step 1: Geocode the city name to lat/long using Open-Meteo Geocoding API
+            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
                 .then(response => {
-                    if (!response.ok) throw new Error('Weather fetch failed');
-                    return response.text();
+                    if (!response.ok) throw new Error('Geocoding failed');
+                    return response.json();
                 })
-                .then(text => {
-                    if (text.includes('<html') || text.includes('<div') || text.trim() === "") {
-                        badge.innerText = 'Weather Unavailable';
-                    } else {
-                        badge.innerText = text.trim();
+                .then(geoData => {
+                    if (!geoData.results || geoData.results.length === 0) {
+                        throw new Error('City not found');
                     }
+                    const result = geoData.results[0];
+                    const lat = result.latitude;
+                    const lon = result.longitude;
+                    
+                    // Step 2: Fetch weather details using Open-Meteo Forecast API
+                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`);
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error('Forecast fetch failed');
+                    return response.json();
+                })
+                .then(weatherData => {
+                    const temp = Math.round(weatherData.current.temperature_2m);
+                    const code = weatherData.current.weather_code;
+                    const desc = getWeatherDescription(code);
+                    badge.innerText = `${desc} +${temp}°F`;
+                    badge.title = `Fetched from Open-Meteo for coordinates: ${weatherData.latitude.toFixed(2)}, ${weatherData.longitude.toFixed(2)}`;
                 })
                 .catch(err => {
-                    console.error('Weather error:', err);
-                    badge.innerText = 'Weather Unavailable';
+                    console.warn('Open-Meteo failed, falling back to wttr.in:', err);
+                    // Fallback to wttr.in plain text format
+                    fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%C+%t`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Weather fetch failed');
+                            return response.text();
+                        })
+                        .then(text => {
+                            if (text.includes('<html') || text.includes('<div') || text.trim() === "") {
+                                badge.innerText = 'Weather Unavailable';
+                            } else {
+                                badge.innerText = text.trim();
+                            }
+                        })
+                        .catch(fallbackErr => {
+                            console.error('Weather fallback error:', fallbackErr);
+                            badge.innerText = 'Weather Unavailable';
+                        });
                 });
+        }
+
+        function getWeatherDescription(code) {
+            const descriptions = {
+                0: "Clear",
+                1: "Mainly Clear",
+                2: "Partly Cloudy",
+                3: "Overcast",
+                45: "Foggy",
+                48: "Rime Fog",
+                51: "Light Drizzle",
+                53: "Moderate Drizzle",
+                55: "Dense Drizzle",
+                56: "Light Freezing Drizzle",
+                57: "Dense Freezing Drizzle",
+                61: "Slight Rain",
+                63: "Moderate Rain",
+                65: "Heavy Rain",
+                66: "Light Freezing Rain",
+                67: "Heavy Freezing Rain",
+                71: "Slight Snowfall",
+                73: "Moderate Snowfall",
+                75: "Heavy Snowfall",
+                77: "Snow Grains",
+                80: "Slight Rain Showers",
+                81: "Moderate Rain Showers",
+                82: "Violent Rain Showers",
+                85: "Slight Snow Showers",
+                86: "Heavy Snow Showers",
+                95: "Thunderstorm",
+                96: "Thunderstorm & Hail",
+                99: "Heavy Thunderstorm"
+            };
+            return descriptions[code] || "Weather Normal";
         }
 
         // Weather iframe panel load
