@@ -17,14 +17,20 @@
         const VOLUME_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
         const FULLSCREEN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`;
         const POPOUT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
+        const SNAPSHOT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
 
         // App state
         let appState = {
             location: "Galveston",
             timezone: "America/Chicago",
             layout: "cinema",
-            streams: []
+            streams: [],
+            rotatorMode: "streams",
+            rotatorInterval: 30
         };
+
+        // Active Player instances reference
+        let streamUptimeStatuses = {};
 
         // Active Player instances reference
         let activePlayers = {};
@@ -89,6 +95,12 @@
                 location: appState.location,
                 timezone: appState.timezone
             }), 365);
+            
+            // Save rotator configuration
+            setCookie('rotator_config', JSON.stringify({
+                mode: appState.rotatorMode,
+                interval: appState.rotatorInterval
+            }), 365);
         }
 
         // Initialize App
@@ -96,6 +108,16 @@
             // Load layout
             const savedLayout = getCookie('stream_layout');
             if (savedLayout) appState.layout = savedLayout;
+            
+            // Load rotator configuration
+            const savedRotator = getCookie('rotator_config');
+            if (savedRotator) {
+                try {
+                    const rot = JSON.parse(savedRotator);
+                    appState.rotatorMode = rot.mode || 'streams';
+                    appState.rotatorInterval = rot.interval || 30;
+                } catch (e) {}
+            }
             
             // Load user configured streams
             let userStreams = [];
@@ -190,6 +212,26 @@
             // Populate category select options and then render sidebar streams
             populateSidebarCategories();
             renderSidebarStreams();
+            checkAllStreamsStatus();
+
+            // Register change handler for custom stream input fields to ease Notes configuration
+            const typeInput = document.getElementById('stream-type-input');
+            const urlInput = document.getElementById('stream-url-input');
+            if (typeInput && urlInput) {
+                typeInput.addEventListener('change', () => {
+                    if (typeInput.value === 'notes') {
+                        urlInput.value = 'notes';
+                        urlInput.placeholder = 'N/A (Automatically set to notes)';
+                        urlInput.readOnly = true;
+                    } else {
+                        if (urlInput.value === 'notes') {
+                            urlInput.value = '';
+                        }
+                        urlInput.placeholder = 'e.g. https://domain.com/feed.m3u8 or YouTube URL';
+                        urlInput.readOnly = false;
+                    }
+                });
+            }
 
             // Asynchronously initialize location and weather
             initLocationAndWeather();
@@ -722,8 +764,12 @@
                 const badgeClass = stream.type.toLowerCase();
                 const displayUrl = stream.url.length > 28 ? stream.url.substring(0, 25) + '...' : stream.url;
                 
+                const status = streamUptimeStatuses[stream.id] || 'checking';
+                const statusTitle = status === 'checking' ? 'Checking status...' : (status === 'online' ? 'Stream online' : 'Stream offline / inaccessible');
+
                 item.innerHTML = `
                     <div class="sidebar-item-header">
+                        <span class="status-dot-mini ${status}" id="sidebar-status-dot-${stream.id}" title="${statusTitle}"></span>
                         <span class="sidebar-item-name" title="${stream.name}">${stream.name}</span>
                         <span class="sidebar-item-badge ${badgeClass}">${stream.type}</span>
                     </div>
@@ -748,6 +794,9 @@
                     </div>
                 `;
             }
+            
+            // Queue status verification for newly rendered list items
+            setTimeout(checkAllStreamsStatus, 100);
         }
 
         // Render layout logic
@@ -852,41 +901,81 @@
             }
             
             const isIframe = stream.type === 'iframe';
-            const controlsHtml = isIframe ? `
-                <div class="stream-controls">
-                    <span class="control-note">External Embed (Custom controls unavailable)</span>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
-                            ${POPOUT_SVG}
-                        </button>
-                        <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
-                            ${FULLSCREEN_SVG}
-                        </button>
-                    </div>
-                </div>
-            ` : `
-                <div class="stream-controls">
-                    <button class="control-btn play-pause-btn" onclick="togglePlay('${stream.id}')" title="Play/Pause">
-                        ${PLAY_SVG}
-                    </button>
-                    <div class="volume-control">
-                        <button class="control-btn volume-mute-btn" onclick="toggleMute('${stream.id}')" title="Mute/Unmute">
-                            ${MUTE_SVG}
-                        </button>
-                        <input type="range" min="0" max="100" value="50" class="volume-slider" oninput="setStreamVolume('${stream.id}', this.value)" title="Volume">
-                    </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
-                            ${POPOUT_SVG}
-                        </button>
-                        <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
-                            ${FULLSCREEN_SVG}
-                        </button>
-                    </div>
-                </div>
-            `;
+            const isNotes = stream.type === 'notes';
             
-            const showVolumeInTab = stream.type !== 'weather' && stream.type !== 'iframe';
+            let controlsHtml = '';
+            if (isNotes) {
+                controlsHtml = `
+                    <div class="stream-controls">
+                        <span class="control-note">Console Event Log</span>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                ${FULLSCREEN_SVG}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (isIframe) {
+                controlsHtml = `
+                    <div class="stream-controls">
+                        <span class="control-note">External Embed (Custom controls unavailable)</span>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                                ${POPOUT_SVG}
+                            </button>
+                            <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                ${FULLSCREEN_SVG}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const isSnapshotSupported = stream.type === 'hls' || stream.type === 'weather';
+                const snapshotButtonHtml = isSnapshotSupported ? `
+                    <button class="control-btn snapshot-btn" onclick="captureSnapshot('${stream.id}')" title="Capture Snapshot Frame">
+                        ${SNAPSHOT_SVG}
+                    </button>
+                ` : '';
+                
+                if (stream.type === 'weather') {
+                    controlsHtml = `
+                        <div class="stream-controls">
+                            <span class="control-note">Weather Forecast Cam</span>
+                            <div style="display: flex; gap: 8px;">
+                                ${snapshotButtonHtml}
+                                <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                    ${FULLSCREEN_SVG}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    controlsHtml = `
+                        <div class="stream-controls">
+                            <button class="control-btn play-pause-btn" onclick="togglePlay('${stream.id}')" title="Play/Pause">
+                                ${PLAY_SVG}
+                            </button>
+                            <div class="volume-control">
+                                <button class="control-btn volume-mute-btn" onclick="toggleMute('${stream.id}')" title="Mute/Unmute">
+                                    ${MUTE_SVG}
+                                </button>
+                                <input type="range" min="0" max="100" value="50" class="volume-slider" oninput="setStreamVolume('${stream.id}', this.value)" title="Volume">
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                ${snapshotButtonHtml}
+                                <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                                    ${POPOUT_SVG}
+                                </button>
+                                <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                    ${FULLSCREEN_SVG}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            const showVolumeInTab = stream.type !== 'weather' && stream.type !== 'iframe' && stream.type !== 'notes';
             const volumeTabHtml = showVolumeInTab ? `<span class="sst-volume" id="sst-volume-${stream.id}">🔇</span>` : '';
 
             card.innerHTML = `
@@ -1020,6 +1109,9 @@
             }
             else if (stream.type === 'weather') {
                 initializeWeatherCam(stream);
+            }
+            else if (stream.type === 'notes') {
+                initializeNotesWidget(stream);
             }
         }
 
@@ -1291,7 +1383,7 @@
             }
         }
 
-        // Auto-cycle channels inside cinema view
+        // Auto-cycle channels or presets
         function toggleCycle() {
             const cycleBtn = document.getElementById('cycle-btn');
             if (cycleInterval) {
@@ -1300,31 +1392,57 @@
                 cycleBtn.innerText = "Auto-Cycle: OFF";
                 cycleBtn.classList.remove('active');
             } else {
-                const activeStreams = appState.streams.filter(s => s.active);
-                if (activeStreams.length <= 1) {
-                    alert('Need at least 2 active streams to Auto-Cycle!');
-                    return;
-                }
-                
-                let currentIndex = activeStreams.findIndex(s => s.id === cinemaActiveStreamId);
-                if (currentIndex === -1) currentIndex = 0;
-                
-                cycleInterval = setInterval(() => {
-                    const currentActive = appState.streams.filter(s => s.active);
-                    if (currentActive.length <= 1) {
-                        toggleCycle();
+                if (appState.rotatorMode === 'presets') {
+                    const presets = getPresets();
+                    if (presets.length <= 1) {
+                        alert('Need at least 2 saved presets to Auto-Cycle Presets!');
                         return;
                     }
-                    currentIndex = (currentIndex + 1) % currentActive.length;
-                    cinemaActiveStreamId = currentActive[currentIndex].id;
                     
-                    if (appState.layout === 'cinema' && document.getElementById('panel-weather').classList.contains('hidden')) {
-                        renderActiveStreams();
+                    let currentPresetIndex = 0;
+                    
+                    cycleInterval = setInterval(() => {
+                        const currentPresets = getPresets();
+                        if (currentPresets.length <= 1) {
+                            toggleCycle();
+                            return;
+                        }
+                        currentPresetIndex = (currentPresetIndex + 1) % currentPresets.length;
+                        loadPreset(currentPresets[currentPresetIndex].name);
+                    }, appState.rotatorInterval * 1000);
+                    
+                    cycleBtn.innerText = "Auto-Cycle Presets: ON";
+                    cycleBtn.classList.add('active');
+                    
+                    // Load the first preset immediately to start the sequence
+                    loadPreset(presets[0].name);
+                } else {
+                    const activeStreams = appState.streams.filter(s => s.active);
+                    if (activeStreams.length <= 1) {
+                        alert('Need at least 2 active streams to Auto-Cycle Streams!');
+                        return;
                     }
-                }, 30000);
-                
-                cycleBtn.innerText = "Auto-Cycle: ON";
-                cycleBtn.classList.add('active');
+                    
+                    let currentIndex = activeStreams.findIndex(s => s.id === cinemaActiveStreamId);
+                    if (currentIndex === -1) currentIndex = 0;
+                    
+                    cycleInterval = setInterval(() => {
+                        const currentActive = appState.streams.filter(s => s.active);
+                        if (currentActive.length <= 1) {
+                            toggleCycle();
+                            return;
+                        }
+                        currentIndex = (currentIndex + 1) % currentActive.length;
+                        cinemaActiveStreamId = currentActive[currentIndex].id;
+                        
+                        if (appState.layout === 'cinema' && document.getElementById('panel-weather').classList.contains('hidden')) {
+                            renderActiveStreams();
+                        }
+                    }, appState.rotatorInterval * 1000);
+                    
+                    cycleBtn.innerText = "Auto-Cycle Streams: ON";
+                    cycleBtn.classList.add('active');
+                }
             }
         }
 
@@ -1533,6 +1651,12 @@
                 tr.appendChild(actionCell);
                 tbody.appendChild(tr);
             });
+
+            // Populate rotator settings in modal
+            const modeSelect = document.getElementById('rotator-mode-select');
+            const intervalInput = document.getElementById('rotator-interval-input');
+            if (modeSelect) modeSelect.value = appState.rotatorMode;
+            if (intervalInput) intervalInput.value = appState.rotatorInterval;
         }
 
         function toggleStreamActive(id, checked) {
@@ -2212,6 +2336,146 @@
                 return;
             }
             volumeIndicator.innerText = getVolumeSymbol(pObj.muted, pObj.volume);
+        }
+
+        // --- Surveillance Console Feature Helpers ---
+
+        function pingStreamStatus(streamId) {
+            const stream = appState.streams.find(s => s.id === streamId);
+            if (!stream) return;
+
+            if (['youtube', 'twitch', 'weather', 'notes'].includes(stream.type.toLowerCase())) {
+                streamUptimeStatuses[streamId] = 'online';
+                updateSidebarStatusDot(streamId, 'online');
+                return;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            // Fetch with mode: 'no-cors' to prevent CORS blockages on direct HEAD calls
+            fetch(stream.url, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' })
+                .then(() => {
+                    clearTimeout(timeoutId);
+                    streamUptimeStatuses[streamId] = 'online';
+                    updateSidebarStatusDot(streamId, 'online');
+                })
+                .catch(() => {
+                    clearTimeout(timeoutId);
+                    const subController = new AbortController();
+                    const subTimeoutId = setTimeout(() => subController.abort(), 4000);
+                    fetch(stream.url, { method: 'GET', signal: subController.signal, mode: 'no-cors' })
+                        .then(() => {
+                            clearTimeout(subTimeoutId);
+                            streamUptimeStatuses[streamId] = 'online';
+                            updateSidebarStatusDot(streamId, 'online');
+                        })
+                        .catch(() => {
+                            clearTimeout(subTimeoutId);
+                            streamUptimeStatuses[streamId] = 'offline';
+                            updateSidebarStatusDot(streamId, 'offline');
+                        });
+                });
+        }
+
+        function updateSidebarStatusDot(streamId, status) {
+            const dot = document.getElementById(`sidebar-status-dot-${streamId}`);
+            if (!dot) return;
+            dot.className = `status-dot-mini ${status}`;
+            dot.title = status === 'checking' ? 'Checking status...' : (status === 'online' ? 'Stream online' : 'Stream offline / inaccessible');
+        }
+
+        function checkAllStreamsStatus() {
+            appState.streams.forEach(stream => {
+                if (!streamUptimeStatuses[stream.id] || streamUptimeStatuses[stream.id] === 'offline') {
+                    pingStreamStatus(stream.id);
+                }
+            });
+        }
+
+        function updateRotatorSettings() {
+            const modeSelect = document.getElementById('rotator-mode-select');
+            const intervalInput = document.getElementById('rotator-interval-input');
+            if (modeSelect) appState.rotatorMode = modeSelect.value;
+            if (intervalInput) appState.rotatorInterval = parseInt(intervalInput.value) || 30;
+            persistState();
+            
+            if (cycleInterval) {
+                toggleCycle();
+                toggleCycle();
+            }
+        }
+
+        function captureSnapshot(streamId) {
+            const stream = appState.streams.find(s => s.id === streamId);
+            if (!stream) return;
+            
+            if (stream.type === 'hls') {
+                const video = document.getElementById(`video-${streamId}_html5_api`) || document.getElementById(`video-${streamId}`);
+                if (!video) {
+                    alert("Video element not found for snapshot.");
+                    return;
+                }
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || video.clientWidth || 640;
+                    canvas.height = video.videoHeight || video.clientHeight || 360;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = `Snapshot_${stream.name.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0, 10)}.png`;
+                    link.href = dataUrl;
+                    link.click();
+                } catch (err) {
+                    console.error("CORS security policy blocked HLS snapshot:", err);
+                    alert("Unable to capture snapshot. The video stream source does not permit cross-origin image sharing (CORS).");
+                }
+            } else if (stream.type === 'weather') {
+                const canvas = document.getElementById(`canvas-weather-${streamId}`);
+                if (!canvas) {
+                    alert("Weather canvas not found.");
+                    return;
+                }
+                try {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = canvas.width;
+                    tempCanvas.height = canvas.height;
+                    const ctx = tempCanvas.getContext('2d');
+                    ctx.drawImage(canvas, 0, 0);
+                    
+                    const dataUrl = tempCanvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = `WeatherCam_${stream.name.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0, 10)}.png`;
+                    link.href = dataUrl;
+                    link.click();
+                } catch (err) {
+                    alert("Failed to capture weather cam snapshot.");
+                }
+            }
+        }
+
+        function initializeNotesWidget(stream) {
+            const container = document.getElementById(`player-container-${stream.id}`);
+            if (!container) return;
+            
+            const savedText = getCookie(`notes_content_${stream.id}`) || '';
+            
+            container.innerHTML = `
+                <div class="notes-widget-container">
+                    <textarea 
+                        class="notes-textarea" 
+                        id="notes-textarea-${stream.id}" 
+                        placeholder="Console Log & Notes...&#10;Record stream events, time observations, or custom logs here."
+                        oninput="saveNotesContent('${stream.id}', this.value)"
+                    >${savedText}</textarea>
+                </div>
+            `;
+        }
+
+        function saveNotesContent(streamId, val) {
+            setCookie(`notes_content_${streamId}`, val, 365);
         }
 
         // Run application
