@@ -16,6 +16,7 @@
         const MUTE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>`;
         const VOLUME_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
         const FULLSCREEN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`;
+        const POPOUT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
         // App state
         let appState = {
@@ -69,6 +70,7 @@
                 name: s.name,
                 url: s.url,
                 type: s.type,
+                category: s.category || 'General',
                 active: s.active
             }));
             setCookie('user_streams', JSON.stringify(userStreams), 365);
@@ -111,6 +113,7 @@
                 name: c.name,
                 url: c.url,
                 type: c.type || 'hls',
+                category: c.category || 'General',
                 active: c.active !== undefined ? c.active : true,
                 isDefault: true
             }));
@@ -121,6 +124,7 @@
                     name: us.name,
                     url: us.url,
                     type: us.type,
+                    category: us.category || 'General',
                     active: us.active !== undefined ? us.active : true,
                     isDefault: false
                 });
@@ -165,6 +169,9 @@
             document.getElementById('layout-select-dropdown').value = appState.layout;
             renderActiveStreams();
             populateSettings();
+            
+            // Populate presets list in the header dropdown
+            updatePresetDropdown();
 
             // Initialize Sidebar state and contents
             const sidebarCollapsed = getCookie('sidebar_collapsed');
@@ -179,6 +186,8 @@
                     if (sidebarBtn) sidebarBtn.classList.add('active');
                 }
             }
+            // Populate category select options and then render sidebar streams
+            populateSidebarCategories();
             renderSidebarStreams();
 
             // Asynchronously initialize location and weather
@@ -685,10 +694,18 @@
             const searchInput = document.getElementById('sidebar-search-input');
             const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
             
+            const categorySelect = document.getElementById('sidebar-category-select');
+            const selectedCategory = categorySelect ? categorySelect.value : 'all';
+            
             listContainer.innerHTML = '';
             
             appState.streams.forEach(stream => {
-                if (query && !stream.name.toLowerCase().includes(query) && !stream.type.toLowerCase().includes(query)) {
+                const streamCategory = stream.category || 'General';
+                if (selectedCategory !== 'all' && streamCategory.toLowerCase() !== selectedCategory.toLowerCase()) {
+                    return;
+                }
+                
+                if (query && !stream.name.toLowerCase().includes(query) && !stream.type.toLowerCase().includes(query) && !streamCategory.toLowerCase().includes(query)) {
                     return;
                 }
                 
@@ -835,9 +852,14 @@
             const controlsHtml = isIframe ? `
                 <div class="stream-controls">
                     <span class="control-note">External Embed (Custom controls unavailable)</span>
-                    <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
-                        ${FULLSCREEN_SVG}
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                            ${POPOUT_SVG}
+                        </button>
+                        <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                            ${FULLSCREEN_SVG}
+                        </button>
+                    </div>
                 </div>
             ` : `
                 <div class="stream-controls">
@@ -850,9 +872,14 @@
                         </button>
                         <input type="range" min="0" max="100" value="50" class="volume-slider" oninput="setStreamVolume('${stream.id}', this.value)" title="Volume">
                     </div>
-                    <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
-                        ${FULLSCREEN_SVG}
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                            ${POPOUT_SVG}
+                        </button>
+                        <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                            ${FULLSCREEN_SVG}
+                        </button>
+                    </div>
                 </div>
             `;
             
@@ -1333,16 +1360,22 @@
                 c.classList.remove('active');
             });
             document.getElementById(tabId).classList.add('active');
+            
+            if (tabId === 'tab-presets') {
+                populatePresetsTable();
+            }
         }
 
         // Configure Form Submissions
         function handleAddStream(event) {
             event.preventDefault();
             const nameInput = document.getElementById('stream-name-input');
+            const categoryInput = document.getElementById('stream-category-input');
             const typeInput = document.getElementById('stream-type-input');
             const urlInput = document.getElementById('stream-url-input');
             
             const name = nameInput.value.trim();
+            const category = categoryInput ? categoryInput.value.trim() || 'General' : 'General';
             const type = typeInput.value;
             const url = urlInput.value.trim();
             
@@ -1353,6 +1386,7 @@
                 name: name,
                 url: url,
                 type: type,
+                category: category,
                 active: true,
                 isDefault: false
             };
@@ -1362,8 +1396,10 @@
             
             // Reset fields
             nameInput.value = '';
+            if (categoryInput) categoryInput.value = '';
             urlInput.value = '';
             
+            populateSidebarCategories();
             populateSettings();
             renderActiveStreams();
             renderSidebarStreams();
@@ -1410,6 +1446,11 @@
                 const nameCell = document.createElement('td');
                 nameCell.innerText = s.name;
                 tr.appendChild(nameCell);
+                
+                // Category
+                const categoryCell = document.createElement('td');
+                categoryCell.innerText = s.category || 'General';
+                tr.appendChild(categoryCell);
                 
                 // Type
                 const typeCell = document.createElement('td');
@@ -1505,6 +1546,7 @@
             appState.streams.splice(index, 1);
             persistState();
             
+            populateSidebarCategories();
             populateSettings();
             renderActiveStreams();
             renderSidebarStreams();
@@ -1517,6 +1559,7 @@
                 setCookie('active_stream_ids', '', -1);
                 setCookie('stream_order', '', -1);
                 setCookie('location_config', '', -1);
+                setCookie('layout_presets', '', -1);
                 
                 appState.layout = 'cinema';
                 appState.location = "Galveston";
@@ -1534,6 +1577,281 @@
                 closeSettings();
                 alert('Wiped state and restored system defaults!');
             }
+        }
+
+        // --- NEW FEATURES IMPLEMENTATION ---
+
+        // 1. Categories Management
+        function populateSidebarCategories() {
+            const categorySelect = document.getElementById('sidebar-category-select');
+            if (!categorySelect) return;
+            
+            const currentValue = categorySelect.value;
+            
+            const categories = new Set();
+            appState.streams.forEach(s => {
+                const cat = s.category || 'General';
+                categories.add(cat.trim());
+            });
+            
+            categorySelect.innerHTML = '<option value="all">All Categories</option>';
+            
+            Array.from(categories).sort().forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.toLowerCase();
+                opt.innerText = cat;
+                categorySelect.appendChild(opt);
+            });
+            
+            if (currentValue && Array.from(categories).some(c => c.toLowerCase() === currentValue)) {
+                categorySelect.value = currentValue;
+            } else {
+                categorySelect.value = 'all';
+            }
+        }
+
+        // 2. Presets Management
+        function getPresets() {
+            const saved = getCookie('layout_presets');
+            if (!saved) return [];
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error("Error parsing layout presets cookie", e);
+                return [];
+            }
+        }
+
+        function updatePresetDropdown() {
+            const dropdown = document.getElementById('preset-select-dropdown');
+            if (!dropdown) return;
+            
+            dropdown.innerHTML = '<option value="">-- Load Preset --</option>';
+            
+            const presets = getPresets();
+            presets.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.innerText = p.name;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        function handlePresetChange(name) {
+            if (!name) return;
+            loadPreset(name);
+            document.getElementById('preset-select-dropdown').value = '';
+        }
+
+        function promptSavePreset() {
+            const name = prompt("Enter a name for the current layout preset:");
+            if (name) {
+                const trimmed = name.trim();
+                if (trimmed) {
+                    savePreset(trimmed);
+                    alert(`Preset "${trimmed}" saved!`);
+                }
+            }
+        }
+
+        function savePreset(name) {
+            if (!name) return;
+            const activeStreams = appState.streams.filter(s => s.active);
+            const activeStreamIds = activeStreams.map(s => s.id);
+            
+            const presets = getPresets();
+            const existingIdx = presets.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+            
+            const presetData = {
+                name: name,
+                layout: appState.layout,
+                activeStreamIds: activeStreamIds
+            };
+            
+            if (existingIdx !== -1) {
+                presets[existingIdx] = presetData;
+            } else {
+                presets.push(presetData);
+            }
+            
+            setCookie('layout_presets', JSON.stringify(presets), 365);
+            updatePresetDropdown();
+            populatePresetsTable();
+        }
+
+        function deletePreset(name) {
+            let presets = getPresets();
+            presets = presets.filter(p => p.name.toLowerCase() !== name.toLowerCase());
+            setCookie('layout_presets', JSON.stringify(presets), 365);
+            updatePresetDropdown();
+            populatePresetsTable();
+        }
+
+        function loadPreset(presetName) {
+            const presets = getPresets();
+            const preset = presets.find(p => p.name.toLowerCase() === presetName.toLowerCase());
+            if (!preset) return;
+            
+            appState.layout = preset.layout;
+            document.getElementById('layout-select-dropdown').value = preset.layout;
+            
+            appState.streams.forEach(s => {
+                s.active = preset.activeStreamIds.includes(s.id);
+            });
+            
+            const activeStreams = [];
+            const inactiveStreams = [];
+            
+            preset.activeStreamIds.forEach(id => {
+                const s = appState.streams.find(st => st.id === id);
+                if (s) activeStreams.push(s);
+            });
+            
+            appState.streams.forEach(s => {
+                if (!preset.activeStreamIds.includes(s.id)) {
+                    inactiveStreams.push(s);
+                }
+            });
+            
+            appState.streams = [...activeStreams, ...inactiveStreams];
+            
+            persistState();
+            renderActiveStreams();
+            renderSidebarStreams();
+            populateSettings();
+        }
+
+        function populatePresetsTable() {
+            const tbody = document.getElementById('presets-table-body');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            const presets = getPresets();
+            
+            if (presets.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px 0;">
+                            No presets saved yet. Set up your layout and click the save button in the header.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            presets.forEach(p => {
+                const tr = document.createElement('tr');
+                
+                const nameCell = document.createElement('td');
+                nameCell.innerText = p.name;
+                tr.appendChild(nameCell);
+                
+                const layoutCell = document.createElement('td');
+                layoutCell.innerText = p.layout;
+                tr.appendChild(layoutCell);
+                
+                const countCell = document.createElement('td');
+                countCell.innerText = p.activeStreamIds.length;
+                tr.appendChild(countCell);
+                
+                const actionCell = document.createElement('td');
+                actionCell.style.textAlign = 'center';
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.innerText = 'Delete';
+                delBtn.onclick = () => {
+                    if (confirm(`Are you sure you want to delete preset "${p.name}"?`)) {
+                        deletePreset(p.name);
+                    }
+                };
+                actionCell.appendChild(delBtn);
+                tr.appendChild(actionCell);
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 3. Multi-Monitor Pop-out Management
+        function popoutStream(streamId) {
+            const stream = appState.streams.find(s => s.id === streamId);
+            if (!stream) return;
+            
+            const name = stream.name;
+            const url = stream.url;
+            const type = stream.type;
+            
+            const w = 800;
+            const h = 480;
+            const left = (screen.width / 2) - (w / 2);
+            const top = (screen.height / 2) - (h / 2);
+            
+            const popWin = window.open('', `popout_${streamId}`, `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`);
+            if (!popWin) {
+                alert('Pop-up window was blocked! Please allow pop-ups for this site.');
+                return;
+            }
+            
+            let playerHtml = '';
+            if (type === 'hls') {
+                playerHtml = `
+                    <video id="pop-player" class="video-js vjs-default-skin vjs-big-play-centered" controls autoplay playsinline style="width:100%; height:100vh;">
+                        <source src="${url}" type="application/x-mpegURL">
+                    </video>
+                    <script src="https://vjs.zencdn.net/8.10.0/video.js"></script>
+                    <script>
+                        videojs('pop-player', {
+                            autoplay: true,
+                            controls: true,
+                            fluid: false
+                        });
+                    </script>
+                `;
+            } else if (type === 'youtube') {
+                let videoId = url;
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                    const match = url.match(regExp);
+                    if (match && match[2].length === 11) {
+                        videoId = match[2];
+                    }
+                }
+                playerHtml = `
+                    <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
+                `;
+            } else if (type === 'twitch') {
+                playerHtml = `
+                    <iframe src="https://player.twitch.tv/?channel=${url}&parent=${window.location.hostname}&autoplay=true" frameborder="0" allowfullscreen="true" scrolling="no" style="width:100%; height:100vh; border:none;"></iframe>
+                `;
+            } else {
+                playerHtml = `
+                    <iframe src="${url}" frameborder="0" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
+                `;
+            }
+            
+            popWin.document.write(`
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${name} - Live Stream Viewer Pop-out</title>
+                    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+                    <style>
+                        body, html {
+                            margin: 0;
+                            padding: 0;
+                            width: 100%;
+                            height: 100%;
+                            background-color: #030712;
+                            overflow: hidden;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${playerHtml}
+                </body>
+                </html>
+            `);
+            popWin.document.close();
         }
 
         // Run application

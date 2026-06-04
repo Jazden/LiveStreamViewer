@@ -911,6 +911,30 @@
             border-bottom: 1px solid var(--border-color);
         }
 
+        .sidebar-category-dropdown {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .sidebar-category-dropdown:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar-category-dropdown option {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+        }
+
         .sidebar-search-input {
             width: 100%;
             background: rgba(255, 255, 255, 0.03);
