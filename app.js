@@ -28,6 +28,7 @@
 
         // Active Player instances reference
         let activePlayers = {};
+        let activeWeatherAnimations = {};
         let cinemaActiveStreamId = null;
         let cycleInterval = null;
         let dragSourceId = null;
@@ -245,16 +246,22 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Weather text badge
-        function updateWeatherBadge(location) {
-            const badge = document.getElementById('weather-badge');
-            badge.innerText = 'Loading Weather...';
-            
-            // Clean up city name
+        // Weather cache variables
+        let weatherForecastCache = null;
+        let weatherForecastLocation = null;
+        let weatherForecastPromise = null;
+        
+        function fetchWeatherForecast(location) {
             const cityName = location.split(',')[0].trim();
+            if (weatherForecastCache && weatherForecastLocation === cityName) {
+                return Promise.resolve(weatherForecastCache);
+            }
+            if (weatherForecastPromise && weatherForecastLocation === cityName) {
+                return weatherForecastPromise;
+            }
             
-            // Step 1: Geocode the city name to lat/long using Open-Meteo Geocoding API
-            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
+            weatherForecastLocation = cityName;
+            weatherForecastPromise = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
                 .then(response => {
                     if (!response.ok) throw new Error('Geocoding failed');
                     return response.json();
@@ -267,19 +274,37 @@
                     const lat = result.latitude;
                     const lon = result.longitude;
                     
-                    // Step 2: Fetch weather details using Open-Meteo Forecast API
-                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`);
+                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`);
                 })
                 .then(response => {
-                    if (!response.ok) throw new Error('Forecast fetch failed');
+                    if (!response.ok) throw new Error('Forecast failed');
                     return response.json();
                 })
-                .then(weatherData => {
-                    const temp = Math.round(weatherData.current.temperature_2m);
-                    const code = weatherData.current.weather_code;
+                .then(data => {
+                    weatherForecastCache = data;
+                    return data;
+                })
+                .catch(err => {
+                    // Reset promise so we can retry on error
+                    weatherForecastPromise = null;
+                    throw err;
+                });
+                
+            return weatherForecastPromise;
+        }
+
+        // Weather text badge
+        function updateWeatherBadge(location) {
+            const badge = document.getElementById('weather-badge');
+            badge.innerText = 'Loading Weather...';
+            
+            fetchWeatherForecast(location)
+                .then(data => {
+                    const temp = Math.round(data.current.temperature_2m);
+                    const code = data.current.weather_code;
                     const desc = getWeatherDescription(code);
                     badge.innerText = `${desc} +${temp}°F`;
-                    badge.title = `Fetched from Open-Meteo for coordinates: ${weatherData.latitude.toFixed(2)}, ${weatherData.longitude.toFixed(2)}`;
+                    badge.title = `Fetched from Open-Meteo for coordinates: ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)}`;
                 })
                 .catch(err => {
                     console.warn('Open-Meteo failed, falling back to wttr.in:', err);
@@ -422,29 +447,7 @@
 
         // Weather full details forecast panel load
         function renderWeatherPanel() {
-            const cityName = appState.location.split(',')[0].trim();
-            
-            // Geocode first, then get forecast
-            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Geocoding failed');
-                    return response.json();
-                })
-                .then(geoData => {
-                    if (!geoData.results || geoData.results.length === 0) {
-                        throw new Error('City not found');
-                    }
-                    const result = geoData.results[0];
-                    const lat = result.latitude;
-                    const lon = result.longitude;
-                    
-                    // Fetch full weather details
-                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`);
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Forecast failed');
-                    return response.json();
-                })
+            fetchWeatherForecast(appState.location)
                 .then(data => {
                     // Populate current weather details
                     const cityEl = document.getElementById('wf-city');
@@ -1007,6 +1010,9 @@
                     volume: 50
                 };
             }
+            else if (stream.type === 'weather') {
+                initializeWeatherCam(stream);
+            }
         }
 
         // Helper to extract YouTube ID
@@ -1133,6 +1139,14 @@
                 }
             }
             activePlayers = {};
+            
+            // Clean up weather animation loops
+            for (const id in activeWeatherAnimations) {
+                if (activeWeatherAnimations[id] && typeof activeWeatherAnimations[id].stop === 'function') {
+                    activeWeatherAnimations[id].stop();
+                }
+            }
+            activeWeatherAnimations = {};
         }
 
         // Unified Playback Controls
@@ -1852,6 +1866,316 @@
                 </html>
             `);
             popWin.document.close();
+        }
+
+        // 4. Animated Weather Cam Stream Widget
+        function initializeWeatherCam(stream) {
+            const container = document.getElementById(`player-container-${stream.id}`);
+            if (!container) return;
+            
+            container.innerHTML = `
+                <canvas id="canvas-weather-${stream.id}" class="weather-canvas"></canvas>
+                <div class="weather-cam-widget" id="weather-cam-widget-${stream.id}">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding-top: 40px;">
+                        Initializing Local Weather Cam...
+                    </div>
+                </div>
+            `;
+            
+            const canvas = document.getElementById(`canvas-weather-${stream.id}`);
+            
+            fetchWeatherForecast(appState.location)
+                .then(data => {
+                    const temp = Math.round(data.current.temperature_2m);
+                    const code = data.current.weather_code;
+                    const desc = getWeatherDescription(code);
+                    const emoji = getWeatherEmoji(code);
+                    const isDay = data.current.is_day === 1;
+                    
+                    const widget = document.getElementById(`weather-cam-widget-${stream.id}`);
+                    if (!widget) return;
+                    
+                    let forecastHtml = '';
+                    for (let i = 1; i <= 5; i++) {
+                        const dateStr = data.daily.time[i];
+                        const dateObj = new Date(dateStr + 'T00:00:00');
+                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                        
+                        const dayCode = data.daily.weather_code[i];
+                        const dayEmoji = getWeatherEmoji(dayCode);
+                        const dayDesc = getWeatherDescription(dayCode);
+                        const maxTemp = Math.round(data.daily.temperature_2m_max[i]);
+                        const minTemp = Math.round(data.daily.temperature_2m_min[i]);
+                        
+                        forecastHtml += `
+                            <div class="wc-forecast-day">
+                                <span class="wc-fd-name">${dayName}</span>
+                                <span class="wc-fd-emoji" title="${dayDesc}">${dayEmoji}</span>
+                                <span class="wc-fd-temps">
+                                    <span class="wc-fd-max">${maxTemp}°</span>
+                                    <span class="wc-fd-min">${minTemp}°</span>
+                                </span>
+                            </div>
+                        `;
+                    }
+                    
+                    widget.innerHTML = `
+                        <div class="wc-header">
+                            <div>
+                                <div class="wc-location">${appState.location}</div>
+                                <div class="wc-current-desc">${desc}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div class="wc-current-temp">${temp}°F</div>
+                            </div>
+                        </div>
+                        <div class="wc-divider"></div>
+                        <div class="wc-forecast-grid">
+                            ${forecastHtml}
+                        </div>
+                    `;
+                    
+                    if (canvas) {
+                        if (activeWeatherAnimations[stream.id]) {
+                            activeWeatherAnimations[stream.id].stop();
+                        }
+                        activeWeatherAnimations[stream.id] = initWeatherAnimation(canvas, code, isDay);
+                    }
+                })
+                .catch(err => {
+                    console.error('Error rendering weather stream widget:', err);
+                    const widget = document.getElementById(`weather-cam-widget-${stream.id}`);
+                    if (widget) {
+                        widget.innerHTML = `
+                            <div style="text-align: center; color: #ef4444; font-size: 0.85rem; padding-top: 40px;">
+                                Weather Stream Cam Offline
+                            </div>
+                        `;
+                    }
+                });
+        }
+
+        function initWeatherAnimation(canvas, code, isDay) {
+            const ctx = canvas.getContext('2d');
+            let animationId;
+            
+            function resize() {
+                if (!canvas.parentNode) return;
+                const rect = canvas.parentNode.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+            }
+            resize();
+            const resizeObserver = new ResizeObserver(() => {
+                resize();
+            });
+            if (canvas.parentNode) {
+                resizeObserver.observe(canvas.parentNode);
+            }
+            
+            let particles = [];
+            let clouds = [];
+            let sunAngle = 0;
+            let time = 0;
+            
+            const isRain = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code);
+            const isSnow = [71, 73, 75, 77, 85, 86].includes(code);
+            const isCloudy = [1, 2, 3, 45, 48].includes(code) || isRain || isSnow;
+            const isSunny = !isRain && !isSnow && (code === 0 || code === 1 || code === 2);
+            const isStorm = [95, 96, 99].includes(code);
+            
+            if (isRain) {
+                const count = isStorm ? 80 : 40;
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: Math.random() * 800,
+                        y: Math.random() * 600,
+                        vy: 8 + Math.random() * 6,
+                        vx: -1.5 - Math.random() * 1.5,
+                        len: 12 + Math.random() * 10
+                    });
+                }
+            } else if (isSnow) {
+                const count = 40;
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: Math.random() * 800,
+                        y: Math.random() * 600,
+                        vy: 1 + Math.random() * 1.5,
+                        vx: -1.0 + Math.random() * 2.0,
+                        r: 2 + Math.random() * 3,
+                        density: Math.random()
+                    });
+                }
+            }
+            
+            if (isCloudy) {
+                const cloudCount = isRain ? 4 : 2;
+                for (let i = 0; i < cloudCount; i++) {
+                    clouds.push({
+                        x: Math.random() * 600 - 100,
+                        y: 10 + Math.random() * 40,
+                        speed: 0.15 + Math.random() * 0.15,
+                        scale: 0.6 + Math.random() * 0.5,
+                        opacity: isRain ? 0.35 : 0.25
+                    });
+                }
+            }
+            
+            function tick() {
+                time++;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                if (isDay) {
+                    if (isRain || isStorm) {
+                        grad.addColorStop(0, '#1f2937');
+                        grad.addColorStop(1, '#111827');
+                    } else if (isCloudy) {
+                        grad.addColorStop(0, '#374151');
+                        grad.addColorStop(1, '#1f2937');
+                    } else {
+                        grad.addColorStop(0, '#0f172a');
+                        grad.addColorStop(1, '#020617');
+                    }
+                } else {
+                    grad.addColorStop(0, '#020617');
+                    grad.addColorStop(1, '#000000');
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                if (isStorm && Math.random() < 0.007) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.15 + Math.random() * 0.2})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                
+                if (!isDay && !isRain && !isSnow) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    for (let i = 0; i < 20; i++) {
+                        const starX = (Math.sin(i * 123.45) * 0.5 + 0.5) * canvas.width;
+                        const starY = (Math.cos(i * 543.21) * 0.5 + 0.5) * (canvas.height * 0.7);
+                        const flicker = 0.5 + Math.sin(time * 0.05 + i) * 0.5;
+                        ctx.globalAlpha = flicker;
+                        ctx.fillRect(starX, starY, 1.5, 1.5);
+                    }
+                    ctx.globalAlpha = 1.0;
+                }
+                
+                if (isSunny && isDay) {
+                    sunAngle += 0.005;
+                    const sunX = canvas.width - 60;
+                    const sunY = 60;
+                    
+                    const sunGlow = ctx.createRadialGradient(sunX, sunY, 15, sunX, sunY, 50);
+                    sunGlow.addColorStop(0, 'rgba(251, 146, 60, 0.6)');
+                    sunGlow.addColorStop(1, 'rgba(251, 146, 60, 0)');
+                    ctx.fillStyle = sunGlow;
+                    ctx.beginPath();
+                    ctx.arc(sunX, sunY, 50, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#fdba74';
+                    ctx.beginPath();
+                    ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#fdba74';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < 8; i++) {
+                        const angle = sunAngle + (i * Math.PI / 4);
+                        ctx.beginPath();
+                        ctx.moveTo(sunX + Math.cos(angle) * 26, sunY + Math.sin(angle) * 26);
+                        ctx.lineTo(sunX + Math.cos(angle) * 36, sunY + Math.sin(angle) * 36);
+                        ctx.stroke();
+                    }
+                }
+                
+                if (isSunny && !isDay) {
+                    const moonX = canvas.width - 60;
+                    const moonY = 60;
+                    
+                    ctx.fillStyle = '#e2e8f0';
+                    ctx.beginPath();
+                    ctx.arc(moonX, moonY, 18, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#020617';
+                    ctx.beginPath();
+                    ctx.arc(moonX - 6, moonY - 2, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                if (isRain) {
+                    ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+                    ctx.lineWidth = 1.5;
+                    particles.forEach(p => {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x + p.vx, p.y + p.len);
+                        ctx.stroke();
+                        
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        
+                        if (p.y > canvas.height) {
+                            p.y = -p.len;
+                            p.x = Math.random() * canvas.width;
+                        }
+                    });
+                } else if (isSnow) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    particles.forEach(p => {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        p.y += p.vy;
+                        p.x += Math.sin(time * 0.02 + p.density) * 0.5;
+                        
+                        if (p.y > canvas.height) {
+                            p.y = -10;
+                            p.x = Math.random() * canvas.width;
+                        }
+                    });
+                }
+                
+                if (isCloudy) {
+                    clouds.forEach(c => {
+                        ctx.fillStyle = isRain ? `rgba(156, 163, 175, ${c.opacity})` : `rgba(243, 244, 246, ${c.opacity})`;
+                        ctx.save();
+                        ctx.translate(c.x, c.y);
+                        ctx.scale(c.scale, c.scale);
+                        
+                        ctx.beginPath();
+                        ctx.arc(50, 50, 30, 0, Math.PI * 2);
+                        ctx.arc(90, 50, 40, 0, Math.PI * 2);
+                        ctx.arc(140, 55, 30, 0, Math.PI * 2);
+                        ctx.rect(50, 45, 90, 40);
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        ctx.restore();
+                        
+                        c.x += c.speed;
+                        if (c.x > canvas.width + 200) {
+                            c.x = -200;
+                            c.y = 10 + Math.random() * 40;
+                        }
+                    });
+                }
+                
+                animationId = requestAnimationFrame(tick);
+            }
+            
+            tick();
+            
+            return {
+                stop: () => {
+                    cancelAnimationFrame(animationId);
+                    resizeObserver.disconnect();
+                }
+            };
         }
 
         // Run application
