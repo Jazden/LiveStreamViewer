@@ -667,6 +667,12 @@
             border-color: var(--accent);
         }
 
+        /* Prevent white-on-white text in select dropdowns */
+        select option {
+            background-color: #0d1222;
+            color: var(--text-main);
+        }
+
         .btn-primary {
             background: var(--accent);
             color: #060913;
@@ -1338,6 +1344,13 @@
                     </div>
                     <div class="sidebar-list" id="sidebar-streams-list">
                         <!-- Generated Dynamically -->
+                    </div>
+                    <!-- Add Custom Stream Sticky Footer -->
+                    <div class="sidebar-footer" style="padding: 12px; border-top: 1px solid var(--border-color); background: rgba(10, 15, 30, 0.45);">
+                        <button class="btn" onclick="openSettingsToTab('tab-streams')" style="width: 100%; justify-content: center; font-size: 0.75rem; padding: 7px 10px; display: flex; align-items: center; gap: 4px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add Custom Stream
+                        </button>
                     </div>
                 </aside>
                 
@@ -2806,6 +2819,11 @@
         // Modal triggers
         function openSettings() {
             document.getElementById('settings-modal').classList.add('open');
+        }
+
+        function openSettingsToTab(tabId) {
+            openSettings();
+            switchTab(tabId);
         }
 
         function closeSettings() {
