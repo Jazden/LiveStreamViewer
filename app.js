@@ -2491,17 +2491,17 @@
 
         const PUBLIC_STREAM_DIRECTORY = [
             { name: "NASA TV Live", url: "https://www.youtube.com/watch?v=21X5lGlDOfg", type: "youtube", category: "Nature & Space", desc: "Official live stream of NASA television, featuring space exploration updates, ISS coverage, and launches.", emoji: "🪐" },
-            { name: "ABC News Live", url: "https://www.youtube.com/watch?v=w_Ma8oQLmSM", type: "youtube", category: "News", desc: "24/7 breaking news broadcasts, reports, and detailed interviews from ABC News.", emoji: "📺" },
-            { name: "DW News Live", url: "https://www.youtube.com/watch?v=v3Z3kC4Z_sM", type: "youtube", category: "News", desc: "Deutsche Welle international broadcast channel offering reports and global viewpoints.", emoji: "📰" },
-            { name: "Sky News Live", url: "https://www.youtube.com/watch?v=9AuqeyyRrrE", type: "youtube", category: "News", desc: "Sky News UK television network offering live continuous news reports and briefings.", emoji: "🇬🇧" },
             { name: "Tokyo Shibuya Crossing", url: "https://www.youtube.com/watch?v=H-30B0cqh88", type: "youtube", category: "Cities", desc: "Real-time webcam viewing the world-famous Shibuya crossing in Tokyo, Japan.", emoji: "🏙️" },
-            { name: "Times Square NYC", url: "https://www.youtube.com/watch?v=1-iS7LArMPA", type: "youtube", category: "Cities", desc: "High-definition streaming cam overlooking the central hub of Times Square in Manhattan.", emoji: "🌉" },
-            { name: "London Abbey Road", url: "https://www.youtube.com/watch?v=Jm_25D25kGA", type: "youtube", category: "Cities", desc: "Live camera facing the legendary pedestrian zebra crossing outside Abbey Road Studios.", emoji: "🚶" },
-            { name: "Venice Beach CA Cam", url: "https://www.youtube.com/watch?v=xdfpPnbZJ7s", type: "youtube", category: "Cities", desc: "Scenic webcam overlooking the famous boardwalk, sands, and palm trees of Venice Beach.", emoji: "🌴" },
-            { name: "Smithsonian Pandas", url: "https://www.youtube.com/watch?v=O1S74W5uXkM", type: "youtube", category: "Nature & Space", desc: "Panda cam broadcast from the Smithsonian National Zoological Park in Washington, DC.", emoji: "🐼" },
-            { name: "Monterey Bay Kelp Cam", url: "https://www.youtube.com/watch?v=v7z7Q-KkK0M", type: "youtube", category: "Nature & Space", desc: "Underwater view from the giant kelp forest exhibit at the Monterey Bay Aquarium.", emoji: "🐠" },
-            { name: "Africa Wildlife Waterhole", url: "https://www.youtube.com/watch?v=Ky0sM8n4bBg", type: "youtube", category: "Nature & Space", desc: "Live safari camera showing wild elephants, zebras, and leopards at a waterhole in Kenya.", emoji: "🐘" },
-            { name: "Earth From Space ISS", url: "https://www.youtube.com/watch?v=jPTD2Gn_Yfk", type: "youtube", category: "Nature & Space", desc: "Live high-definition views of planet Earth streaming directly from the International Space Station.", emoji: "🌍" }
+            { name: "ABC News Live", url: "https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master_4000.m3u8", type: "hls", category: "News", desc: "24/7 breaking news broadcasts, reports, and detailed interviews from ABC News.", emoji: "📺" },
+            { name: "DW News Live", url: "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/master.m3u8", type: "hls", category: "News", desc: "Deutsche Welle international broadcast channel offering reports and global viewpoints.", emoji: "📰" },
+            { name: "Al Jazeera English", url: "https://live-hls-web-aja2-gcp.thehlive.com/AJA2/index.m3u8", type: "hls", category: "News", desc: "Al Jazeera English international live broadcast news channel.", emoji: "📡" },
+            { name: "France 24 English", url: "https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_2300.m3u8", type: "hls", category: "News", desc: "France 24 English live stream, international breaking news and reports.", emoji: "🇫🇷" },
+            { name: "NHK World Japan", url: "https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8", type: "hls", category: "News", desc: "NHK World-Japan English language live channel covering Japanese news, culture, and lifestyle.", emoji: "🇯🇵" },
+            { name: "Galveston Harbor Cam", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "High-definition streaming cam overlooking the harbor view of Galveston, Texas.", emoji: "🚢" },
+            { name: "Galveston Seawall Cam", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "Scenic webcam overlooking the famous boardwalk, seawall and beach of Galveston, Texas.", emoji: "🌴" },
+            { name: "Galveston Skycam North", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "A panoramic high-altitude view of the northern side of Galveston city.", emoji: "🧭" },
+            { name: "PhillyCAM Live", url: "https://livestream.telvue.com/phillycam1/f7b44cfafd5c52223d5498196c8a2e7b.sdp/playlist.m3u8", type: "hls", category: "Cities", desc: "Philadelphia community access television stream covering city events and stories.", emoji: "🔔" },
+            { name: "Escambia Florida Beach Cam", url: "https://cpcdn.azureedge.net/ESCAMBIACOFLLIVE1/ESCAMBIACOFLLIVE1/playlist.m3u8", type: "hls", category: "Cities", desc: "Scenic webcam overlooking Pensacola Beach in Escambia County, Florida.", emoji: "⛱️" }
         ];
 
         let verifiedDirectoryStreams = {}; // Cache map: url -> 'online' | 'offline'
@@ -2577,6 +2577,137 @@
                 renderPublicStreamBrowser();
             }
         }
+
+        let activePreviewPlayer = null;
+
+        function getYoutubeId(url) {
+            let videoId = '';
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                if (match && match[2].length === 11) {
+                    videoId = match[2];
+                }
+            }
+            return videoId;
+        }
+
+        function previewDirectoryStream(item) {
+            const modal = document.getElementById('preview-modal');
+            if (!modal) return;
+
+            document.getElementById('preview-stream-title').textContent = item.name;
+
+            // Render action button container
+            const isAlreadyAdded = appState.streams.some(s => s.url === item.url);
+            const actionContainer = document.getElementById('preview-action-btn-container');
+            if (actionContainer) {
+                if (isAlreadyAdded) {
+                    actionContainer.innerHTML = `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`;
+                } else {
+                    actionContainer.innerHTML = `<button class="btn btn-primary" onclick="addDirectoryStreamFromPreview('${item.name.replace(/'/g, "\\'")}', '${item.url}', '${item.type}', '${item.category.replace(/'/g, "\\'")}')">Add to Dashboard</button>`;
+                }
+            }
+
+            modal.classList.add('open');
+
+            // Setup the player inside #preview-player-container
+            const container = document.getElementById('preview-player-container');
+            container.innerHTML = '';
+
+            if (item.type === 'youtube') {
+                const videoId = getYoutubeId(item.url);
+                if (videoId) {
+                    container.innerHTML = `
+                        <iframe 
+                            src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1" 
+                            style="width: 100%; height: 100%; border: none;"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            allowfullscreen>
+                        </iframe>
+                    `;
+                } else {
+                    container.innerHTML = `<div style="color: var(--text-muted); display: flex; align-items: center; justify-content: center; height: 100%;">Invalid YouTube URL</div>`;
+                }
+            } else if (item.type === 'hls') {
+                // Create a temporary video element for Video.js
+                const videoEl = document.createElement('video');
+                videoEl.id = 'preview-video-player';
+                videoEl.className = 'video-js vjs-default-skin vjs-big-play-centered';
+                videoEl.style.width = '100%';
+                videoEl.style.height = '100%';
+                videoEl.controls = true;
+                videoEl.muted = true;
+                videoEl.autoplay = true;
+                videoEl.setAttribute('playsinline', 'true');
+                
+                const sourceEl = document.createElement('source');
+                sourceEl.src = item.url;
+                sourceEl.type = 'application/x-mpegURL';
+                videoEl.appendChild(sourceEl);
+                container.appendChild(videoEl);
+
+                // Initialize Video.js player
+                setTimeout(() => {
+                    try {
+                        activePreviewPlayer = videojs('preview-video-player', {
+                            fluid: false,
+                            responsive: true,
+                            autoplay: 'any',
+                            muted: true,
+                            controls: true,
+                            preload: 'auto'
+                        });
+                    } catch (e) {
+                        console.error('Error initializing preview Video.js:', e);
+                    }
+                }, 50);
+            } else {
+                container.innerHTML = `<div style="color: var(--text-muted); display: flex; align-items: center; justify-content: center; height: 100%;">Preview not supported for this stream type.</div>`;
+            }
+        }
+
+        function addDirectoryStreamFromPreview(name, url, type, category) {
+            addDirectoryStream(name, url, type, category);
+            // Re-render preview actions to update button state to "Added ✓"
+            const actionContainer = document.getElementById('preview-action-btn-container');
+            if (actionContainer) {
+                actionContainer.innerHTML = `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`;
+            }
+        }
+
+        function closePreviewModal() {
+            const modal = document.getElementById('preview-modal');
+            if (modal) {
+                modal.classList.remove('open');
+            }
+
+            // Cleanup HLS videojs player if active
+            if (activePreviewPlayer) {
+                try {
+                    activePreviewPlayer.dispose();
+                } catch (e) {
+                    console.error('Error disposing preview player:', e);
+                }
+                activePreviewPlayer = null;
+            }
+
+            // Clear the player container to stop any iframe/audio
+            const container = document.getElementById('preview-player-container');
+            if (container) {
+                container.innerHTML = '';
+            }
+        }
+
+        function closePreviewOnOverlay(event) {
+            if (event.target === document.getElementById('preview-modal')) {
+                closePreviewModal();
+            }
+        }
+
+        window.closePreviewModal = closePreviewModal;
+        window.closePreviewOnOverlay = closePreviewOnOverlay;
+        window.addDirectoryStreamFromPreview = addDirectoryStreamFromPreview;
 
         let currentBrowserCategory = 'all';
 
@@ -2677,6 +2808,12 @@
                 
                 const card = document.createElement('div');
                 card.className = 'browser-card';
+                card.style.cursor = 'pointer';
+                card.onclick = (e) => {
+                    if (!e.target.closest('.btn')) {
+                        previewDirectoryStream(item);
+                    }
+                };
                 
                 const bgGradient = getCategoryGradient(item.category);
                 const buttonHtml = isAlreadyAdded 
