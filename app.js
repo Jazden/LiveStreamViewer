@@ -886,7 +886,14 @@
                 </div>
             `;
             
+            const showVolumeInTab = stream.type !== 'weather' && stream.type !== 'iframe';
+            const volumeTabHtml = showVolumeInTab ? `<span class="sst-volume" id="sst-volume-${stream.id}">🔇</span>` : '';
+
             card.innerHTML = `
+                <div class="stream-status-tab" id="status-tab-${stream.id}">
+                    <span class="sst-name">${stream.name}</span>
+                    ${volumeTabHtml}
+                </div>
                 <div class="stream-header">
                     <span class="stream-name">${stream.name}</span>
                     <span class="stream-type-badge">${stream.type}</span>
@@ -930,6 +937,7 @@
                     };
                     
                     player.volume(0.5);
+                    updateFloatingTabVolume(stream.id);
                     
                     player.on('play', () => {
                         const btn = document.querySelector(`#card-${stream.id} .play-pause-btn`);
@@ -1080,6 +1088,7 @@
                     muted: true,
                     volume: 50
                 };
+                updateFloatingTabVolume(stream.id);
             } catch (e) {
                 console.error('Error creating YouTube player instance: ', e);
             }
@@ -1103,6 +1112,7 @@
                     muted: true,
                     volume: 50
                 };
+                updateFloatingTabVolume(stream.id);
                 
                 player.addEventListener(Twitch.Player.READY, () => {
                     player.setVolume(0.5);
@@ -1212,6 +1222,9 @@
             pObj.muted = isMuted;
             updateMuteBtnIcon(btn, isMuted);
             slider.value = isMuted ? 0 : pObj.volume;
+            
+            // Update floating status tab volume icon
+            updateFloatingTabVolume(streamId);
         }
 
         function setStreamVolume(streamId, val) {
@@ -1244,6 +1257,9 @@
                 pObj.instance.setMuted(pObj.muted);
                 pObj.instance.setVolume(val / 100);
             }
+            
+            // Update floating status tab volume icon
+            updateFloatingTabVolume(streamId);
         }
 
         function fullscreenStream(streamId) {
@@ -2176,6 +2192,24 @@
                     resizeObserver.disconnect();
                 }
             };
+        }
+
+        function getVolumeSymbol(muted, volume) {
+            if (muted || volume === 0) return '🔇';
+            if (volume <= 33) return '🔈';
+            if (volume <= 66) return '🔉';
+            return '🔊';
+        }
+
+        function updateFloatingTabVolume(streamId) {
+            const pObj = activePlayers[streamId];
+            const volumeIndicator = document.getElementById(`sst-volume-${streamId}`);
+            if (!volumeIndicator) return;
+            if (!pObj) {
+                volumeIndicator.innerText = '🔇';
+                return;
+            }
+            volumeIndicator.innerText = getVolumeSymbol(pObj.muted, pObj.volume);
         }
 
         // Run application
