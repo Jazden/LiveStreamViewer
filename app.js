@@ -235,6 +235,9 @@
 
             // Asynchronously initialize location and weather
             initLocationAndWeather();
+            
+            // Asynchronously verify directory streams in the background
+            verifyPublicDirectoryStreams();
         }
 
         // Load Youtube and Twitch Embed scripts
@@ -2501,6 +2504,80 @@
             { name: "Earth From Space ISS", url: "https://www.youtube.com/watch?v=jPTD2Gn_Yfk", type: "youtube", category: "Nature & Space", desc: "Live high-definition views of planet Earth streaming directly from the International Space Station.", emoji: "🌍" }
         ];
 
+        let verifiedDirectoryStreams = {}; // Cache map: url -> 'online' | 'offline'
+        let isDirectoryVerifying = false;
+        let directoryVerificationStarted = false;
+
+        async function checkDirectoryStreamUsability(item) {
+            if (verifiedDirectoryStreams[item.url]) {
+                return verifiedDirectoryStreams[item.url];
+            }
+
+            try {
+                if (item.type === 'youtube') {
+                    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(item.url)}&format=json`;
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    
+                    const response = await fetch(oembedUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        verifiedDirectoryStreams[item.url] = 'online';
+                    } else {
+                        verifiedDirectoryStreams[item.url] = 'offline';
+                    }
+                } else {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    try {
+                        await fetch(item.url, { 
+                            method: 'HEAD', 
+                            mode: 'no-cors',
+                            signal: controller.signal 
+                        });
+                        clearTimeout(timeoutId);
+                        verifiedDirectoryStreams[item.url] = 'online';
+                    } catch (e) {
+                        clearTimeout(timeoutId);
+                        const getController = new AbortController();
+                        const getTimeoutId = setTimeout(() => getController.abort(), 6000);
+                        await fetch(item.url, {
+                            method: 'GET',
+                            mode: 'no-cors',
+                            signal: getController.signal
+                        });
+                        clearTimeout(getTimeoutId);
+                        verifiedDirectoryStreams[item.url] = 'online';
+                    }
+                }
+            } catch (err) {
+                console.warn(`Stream verification failed for "${item.name}":`, err);
+                verifiedDirectoryStreams[item.url] = 'offline';
+            }
+            return verifiedDirectoryStreams[item.url];
+        }
+
+        async function verifyPublicDirectoryStreams() {
+            if (directoryVerificationStarted) return;
+            directoryVerificationStarted = true;
+            isDirectoryVerifying = true;
+
+            const panel = document.getElementById('panel-browser');
+            if (panel && !panel.classList.contains('hidden')) {
+                renderPublicStreamBrowser();
+            }
+
+            const promises = PUBLIC_STREAM_DIRECTORY.map(item => checkDirectoryStreamUsability(item));
+            await Promise.allSettled(promises);
+
+            isDirectoryVerifying = false;
+            
+            if (panel && !panel.classList.contains('hidden')) {
+                renderPublicStreamBrowser();
+            }
+        }
+
         let currentBrowserCategory = 'all';
 
         function showMainStreamsPanel() {
@@ -2532,6 +2609,7 @@
                 browserBtn.classList.add('active');
                 weatherBtn.classList.remove('active');
                 
+                verifyPublicDirectoryStreams();
                 renderPublicStreamBrowser();
             } else {
                 browserPanel.classList.add('hidden');
@@ -2564,8 +2642,22 @@
             const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
             
             grid.innerHTML = '';
+
+            if (isDirectoryVerifying) {
+                grid.innerHTML = `
+                    <div class="browser-loading-container">
+                        <span class="browser-spinner" style="font-size: 3.5rem; margin-bottom: 10px;">📡</span>
+                        <div style="font-weight: 500; letter-spacing: 0.5px;">Verifying stream directory availability...</div>
+                    </div>
+                `;
+                return;
+            }
             
             PUBLIC_STREAM_DIRECTORY.forEach(item => {
+                // Verify stream is usable before showing
+                if (verifiedDirectoryStreams[item.url] !== 'online') {
+                    return;
+                }
                 const itemCat = item.category.toLowerCase();
                 
                 // Category filter
