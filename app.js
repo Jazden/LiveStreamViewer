@@ -1450,11 +1450,7 @@
             appState.layout = layoutName;
             persistState();
             
-            // Switch panels
-            document.getElementById('panel-streams').classList.remove('hidden');
-            document.getElementById('panel-weather').classList.add('hidden');
-            document.getElementById('btn-weather-view').classList.remove('active');
-            
+            showMainStreamsPanel();
             renderActiveStreams();
         }
 
@@ -1463,10 +1459,19 @@
             const streamPanel = document.getElementById('panel-streams');
             const weatherBtn = document.getElementById('btn-weather-view');
             
+            const browserPanel = document.getElementById('panel-browser');
+            const browserBtn = document.getElementById('btn-browser-view');
+            
             if (weatherPanel.classList.contains('hidden')) {
+                clearAllPlayers();
+                
                 weatherPanel.classList.remove('hidden');
                 streamPanel.classList.add('hidden');
                 weatherBtn.classList.add('active');
+                
+                if (browserPanel) browserPanel.classList.add('hidden');
+                if (browserBtn) browserBtn.classList.remove('active');
+                
                 renderWeatherPanel();
             } else {
                 weatherPanel.classList.add('hidden');
@@ -1848,6 +1853,7 @@
             
             appState.layout = preset.layout;
             document.getElementById('layout-select-dropdown').value = preset.layout;
+            showMainStreamsPanel();
             
             appState.streams.forEach(s => {
                 s.active = preset.activeStreamIds.includes(s.id);
@@ -2476,6 +2482,189 @@
 
         function saveNotesContent(streamId, val) {
             setCookie(`notes_content_${streamId}`, val, 365);
+        }
+
+        // --- Public Stream Directory Browser ---
+
+        const PUBLIC_STREAM_DIRECTORY = [
+            { name: "NASA TV Live", url: "https://www.youtube.com/watch?v=21X5lGlDOfg", type: "youtube", category: "Nature & Space", desc: "Official live stream of NASA television, featuring space exploration updates, ISS coverage, and launches.", emoji: "🪐" },
+            { name: "ABC News Live", url: "https://www.youtube.com/watch?v=w_Ma8oQLmSM", type: "youtube", category: "News", desc: "24/7 breaking news broadcasts, reports, and detailed interviews from ABC News.", emoji: "📺" },
+            { name: "DW News Live", url: "https://www.youtube.com/watch?v=v3Z3kC4Z_sM", type: "youtube", category: "News", desc: "Deutsche Welle international broadcast channel offering reports and global viewpoints.", emoji: "📰" },
+            { name: "Sky News Live", url: "https://www.youtube.com/watch?v=9AuqeyyRrrE", type: "youtube", category: "News", desc: "Sky News UK television network offering live continuous news reports and briefings.", emoji: "🇬🇧" },
+            { name: "Tokyo Shibuya Crossing", url: "https://www.youtube.com/watch?v=H-30B0cqh88", type: "youtube", category: "Cities", desc: "Real-time webcam viewing the world-famous Shibuya crossing in Tokyo, Japan.", emoji: "🏙️" },
+            { name: "Times Square NYC", url: "https://www.youtube.com/watch?v=1-iS7LArMPA", type: "youtube", category: "Cities", desc: "High-definition streaming cam overlooking the central hub of Times Square in Manhattan.", emoji: "🌉" },
+            { name: "London Abbey Road", url: "https://www.youtube.com/watch?v=Jm_25D25kGA", type: "youtube", category: "Cities", desc: "Live camera facing the legendary pedestrian zebra crossing outside Abbey Road Studios.", emoji: "🚶" },
+            { name: "Venice Beach CA Cam", url: "https://www.youtube.com/watch?v=xdfpPnbZJ7s", type: "youtube", category: "Cities", desc: "Scenic webcam overlooking the famous boardwalk, sands, and palm trees of Venice Beach.", emoji: "🌴" },
+            { name: "Smithsonian Pandas", url: "https://www.youtube.com/watch?v=O1S74W5uXkM", type: "youtube", category: "Nature & Space", desc: "Panda cam broadcast from the Smithsonian National Zoological Park in Washington, DC.", emoji: "🐼" },
+            { name: "Monterey Bay Kelp Cam", url: "https://www.youtube.com/watch?v=v7z7Q-KkK0M", type: "youtube", category: "Nature & Space", desc: "Underwater view from the giant kelp forest exhibit at the Monterey Bay Aquarium.", emoji: "🐠" },
+            { name: "Africa Wildlife Waterhole", url: "https://www.youtube.com/watch?v=Ky0sM8n4bBg", type: "youtube", category: "Nature & Space", desc: "Live safari camera showing wild elephants, zebras, and leopards at a waterhole in Kenya.", emoji: "🐘" },
+            { name: "Earth From Space ISS", url: "https://www.youtube.com/watch?v=jPTD2Gn_Yfk", type: "youtube", category: "Nature & Space", desc: "Live high-definition views of planet Earth streaming directly from the International Space Station.", emoji: "🌍" }
+        ];
+
+        let currentBrowserCategory = 'all';
+
+        function showMainStreamsPanel() {
+            document.getElementById('panel-streams').classList.remove('hidden');
+            document.getElementById('panel-weather').classList.add('hidden');
+            document.getElementById('btn-weather-view').classList.remove('active');
+            
+            const browserPanel = document.getElementById('panel-browser');
+            const browserBtn = document.getElementById('btn-browser-view');
+            if (browserPanel) browserPanel.classList.add('hidden');
+            if (browserBtn) browserBtn.classList.remove('active');
+        }
+
+        function toggleBrowserView() {
+            const streamsPanel = document.getElementById('panel-streams');
+            const weatherPanel = document.getElementById('panel-weather');
+            const browserPanel = document.getElementById('panel-browser');
+            
+            const weatherBtn = document.getElementById('btn-weather-view');
+            const browserBtn = document.getElementById('btn-browser-view');
+            
+            if (browserPanel.classList.contains('hidden')) {
+                clearAllPlayers();
+                
+                browserPanel.classList.remove('hidden');
+                streamsPanel.classList.add('hidden');
+                weatherPanel.classList.add('hidden');
+                
+                browserBtn.classList.add('active');
+                weatherBtn.classList.remove('active');
+                
+                renderPublicStreamBrowser();
+            } else {
+                browserPanel.classList.add('hidden');
+                streamsPanel.classList.remove('hidden');
+                browserBtn.classList.remove('active');
+                
+                renderActiveStreams();
+            }
+        }
+
+        function getCategoryGradient(category) {
+            switch(category.toLowerCase()) {
+                case 'news':
+                    return 'linear-gradient(135deg, #1e3a8a 0%, #581c87 100%)';
+                case 'cities':
+                    return 'linear-gradient(135deg, #0f766e 0%, #1e1b4b 100%)';
+                case 'nature & space':
+                case 'nature':
+                    return 'linear-gradient(135deg, #311042 0%, #020617 100%)';
+                default:
+                    return 'linear-gradient(135deg, #111827 0%, #374151 100%)';
+            }
+        }
+
+        function renderPublicStreamBrowser() {
+            const grid = document.getElementById('browser-streams-grid');
+            if (!grid) return;
+            
+            const searchInput = document.getElementById('browser-search-input');
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
+            grid.innerHTML = '';
+            
+            PUBLIC_STREAM_DIRECTORY.forEach(item => {
+                const itemCat = item.category.toLowerCase();
+                
+                // Category filter
+                if (currentBrowserCategory !== 'all') {
+                    if (currentBrowserCategory === 'news' && itemCat !== 'news') return;
+                    if (currentBrowserCategory === 'cities' && itemCat !== 'cities') return;
+                    if (currentBrowserCategory === 'nature' && itemCat !== 'nature & space') return;
+                }
+                
+                // Search filter
+                if (query && !item.name.toLowerCase().includes(query) && !item.desc.toLowerCase().includes(query)) {
+                    return;
+                }
+                
+                // Check if already in appState.streams
+                const isAlreadyAdded = appState.streams.some(s => s.url === item.url);
+                
+                const card = document.createElement('div');
+                card.className = 'browser-card';
+                
+                const bgGradient = getCategoryGradient(item.category);
+                const buttonHtml = isAlreadyAdded 
+                    ? `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`
+                    : `<button class="btn btn-primary" onclick="addDirectoryStream('${item.name.replace(/'/g, "\\'")}', '${item.url}', '${item.type}', '${item.category.replace(/'/g, "\\'")}')">Add Stream</button>`;
+                
+                card.innerHTML = `
+                    <div class="browser-card-thumb" style="background: ${bgGradient}">
+                        <div class="browser-card-category">${item.category}</div>
+                        <div class="browser-card-type ${item.type}">${item.type}</div>
+                        <span style="font-size: 3rem; z-index: 2; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">${item.emoji}</span>
+                    </div>
+                    <div class="browser-card-info">
+                        <div class="browser-card-title">${item.name}</div>
+                        <div class="browser-card-desc">${item.desc}</div>
+                    </div>
+                    <div class="browser-card-action">
+                        ${buttonHtml}
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            if (grid.children.length === 0) {
+                grid.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); padding: 40px; grid-column: 1 / -1;">
+                        No streams found matching search criteria.
+                    </div>
+                `;
+            }
+        }
+
+        function switchBrowserCategory(cat) {
+            currentBrowserCategory = cat;
+            
+            // Update active state in tabs
+            const tabs = document.querySelectorAll('#browser-category-tabs .browser-cat-btn');
+            tabs.forEach(tab => {
+                const onclickAttr = tab.getAttribute('onclick') || '';
+                if (onclickAttr.includes(`'${cat}'`)) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            renderPublicStreamBrowser();
+        }
+
+        function filterPublicStreams() {
+            renderPublicStreamBrowser();
+        }
+
+        function addDirectoryStream(name, url, type, category) {
+            if (appState.streams.some(s => s.url === url)) {
+                return;
+            }
+            
+            const newStream = {
+                id: 'custom-' + Date.now(),
+                name: name,
+                url: url,
+                type: type,
+                category: category || 'General',
+                active: true,
+                isDefault: false
+            };
+            
+            appState.streams.push(newStream);
+            persistState();
+            
+            // Re-render
+            renderPublicStreamBrowser();
+            populateSidebarCategories();
+            populateSettings();
+            renderActiveStreams();
+            renderSidebarStreams();
+            
+            alert(`"${name}" has been added to your sidebar streams!`);
         }
 
         // Run application

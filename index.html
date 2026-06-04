@@ -67,6 +67,7 @@
                 <span>Streams Sidebar</span>
             </button>
 
+            <button class="btn" id="btn-browser-view" onclick="toggleBrowserView()">Browse Streams</button>
             <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Forecast</button>
             
             <!-- Settings Gear Button -->
@@ -148,6 +149,32 @@
                             Loading Forecast details...
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Public Stream Browser Panel -->
+        <div id="panel-browser" class="view-panel hidden">
+            <div class="browser-container">
+                <div class="browser-header">
+                    <h2>Public Stream Directory</h2>
+                    <p class="about-text">Explore and add high-quality, family-friendly public webcams, scenic channels, and global news broadcasts directly to your dashboard console.</p>
+                    
+                    <div class="browser-filter-row">
+                        <div class="browser-search-wrap">
+                            <input type="text" id="browser-search-input" class="sidebar-search-input" placeholder="Search directory..." oninput="filterPublicStreams()">
+                        </div>
+                        <div class="browser-categories" id="browser-category-tabs">
+                            <button class="browser-cat-btn active" onclick="switchBrowserCategory('all')">All Feeds</button>
+                            <button class="browser-cat-btn" onclick="switchBrowserCategory('news')">News</button>
+                            <button class="browser-cat-btn" onclick="switchBrowserCategory('cities')">City Views</button>
+                            <button class="browser-cat-btn" onclick="switchBrowserCategory('nature')">Nature & Space</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="browser-grid" id="browser-streams-grid">
+                    <!-- Cards Generated Dynamically -->
                 </div>
             </div>
         </div>
