@@ -3859,6 +3859,13 @@
             // Load displays list
             loadPairedDisplays(code);
 
+            // Auto-select first paired display if code is empty and we have saved displays
+            if ((!code || code.trim() === '') && pairedDisplays.length > 0) {
+                code = pairedDisplays[0].code;
+            }
+
+            remotePairCode = code || '';
+
             // Render switcher in header
             renderDisplaySwitcherHeader();
 
@@ -3873,27 +3880,20 @@
             const disOverlay = document.getElementById('remote-disconnected-overlay');
             const ctrlDeck = document.getElementById('remote-control-deck');
 
-            if (!code || code.trim() === '') {
+            if (!remotePairCode || remotePairCode.trim() === '') {
                 // State A: Show manual code entry screen, hide TV remote deck
                 if (entryCard) entryCard.classList.remove('hidden');
                 if (disOverlay) disOverlay.classList.add('hidden');
                 if (ctrlDeck) ctrlDeck.classList.add('hidden');
-                
-                const badge = document.getElementById('remote-code-badge');
-                if (badge) badge.innerText = 'UNPAIRED';
                 return;
             }
 
             // State B: Show connecting/disconnected card, wait for TV sync
-            remotePairCode = code;
             if (entryCard) entryCard.classList.add('hidden');
             if (disOverlay) disOverlay.classList.remove('hidden');
             if (ctrlDeck) ctrlDeck.classList.add('hidden');
 
-            const badge = document.getElementById('remote-code-badge');
-            if (badge) badge.innerText = 'CODE: ' + code;
-
-            const topic = getMqttTopic(code);
+            const topic = getMqttTopic(remotePairCode);
             console.log(`[Mobile Remote] Connecting. Code: ${code}, Topic: ${topic}`);
 
             try {
