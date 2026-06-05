@@ -1906,7 +1906,7 @@
         /* Responsive Controls Dropdown Menu */
         .more-controls-wrapper {
             position: relative;
-            display: none; /* Managed by JS */
+            display: block; /* Persistent */
         }
 
         .more-controls-dropdown-menu {

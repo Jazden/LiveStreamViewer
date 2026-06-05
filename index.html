@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.1.0">
+    <link rel="stylesheet" href="style.css?v=1.1.1">
 </head>
 <body>
 
@@ -36,58 +36,59 @@
         </div>
 
         <div class="controls" id="header-controls-group">
-            <button class="btn" id="btn-refresh-all" onclick="location.reload()" title="Reload all players">Refresh All</button>
-            <button class="btn" id="cycle-btn" onclick="toggleCycle()">Auto-Cycle: OFF</button>
-            <button class="btn" id="btn-fullscreen-all" onclick="toggleFS()">Fullscreen</button>
-            
-            <!-- Dropdown Layout Selector -->
-            <div class="layout-selector-container" id="container-layout-select">
-                <span class="layout-label">Layout:</span>
-                <select id="layout-select-dropdown" onchange="handleLayoutChange(this.value)" class="layout-dropdown">
-                    <option value="cinema">Cinema View (1 Stream)</option>
-                    <option value="grid-2x2">2x2 Grid (Max 4)</option>
-                    <option value="grid-2x3">2x3 Grid (Max 6)</option>
-                    <option value="grid-2x4">2x4 Grid (Max 8)</option>
-                    <option value="grid-3x3">3x3 Grid (Max 9)</option>
-                    <option value="grid-4x4">4x4 Grid (Max 16)</option>
-                    <option value="layout-1-5">1 Large + 5 Small (Max 6)</option>
-                    <option value="layout-2-3">2 Large + 3 Small (Max 5)</option>
-                </select>
-            </div>
-
-            <!-- Dropdown Presets Selector -->
-            <div class="layout-selector-container" id="container-preset-select" style="gap: 6px;">
-                <span class="layout-label">Preset:</span>
-                <select id="preset-select-dropdown" onchange="handlePresetChange(this.value)" class="layout-dropdown" style="max-width: 140px; padding-right: 25px;">
-                    <option value="">-- Load Preset --</option>
-                </select>
-                <button class="btn" onclick="promptSavePreset()" title="Save current layout as preset" style="padding: 8px 10px; min-width: 36px; display: flex; align-items: center; justify-content: center; height: 34px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                </button>
-            </div>
-
-            <!-- Sidebar Toggle Button -->
-            <button class="btn" id="btn-toggle-sidebar" onclick="toggleSidebar()" title="Toggle Stream Sidebar">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-sidebar"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
-                <span>Streams Sidebar</span>
-            </button>
-
-            <button class="btn" id="btn-browser-view" onclick="toggleBrowserView()">Browse Streams</button>
-            <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Forecast</button>
-            
-            <!-- Settings Gear Button -->
-            <button class="btn" id="btn-settings" onclick="openSettings()" title="Configuration Settings">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-
             <!-- More Controls Dropdown -->
             <div class="more-controls-wrapper" id="more-controls-wrapper">
                 <button class="btn" id="btn-more-toggle" onclick="toggleMoreControlsMenu(event)" title="More Controls">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-more-horizontal"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                    <span>More</span>
+                    <span>More Controls</span>
                 </button>
                 <div class="more-controls-dropdown-menu" id="more-controls-dropdown-menu">
-                    <!-- Overflowing elements dynamically inserted here -->
+                    <!-- Dropdown Layout Selector -->
+                    <div class="layout-selector-container" id="container-layout-select">
+                        <span class="layout-label">Layout:</span>
+                        <select id="layout-select-dropdown" onchange="handleLayoutChange(this.value)" class="layout-dropdown">
+                            <option value="cinema">Cinema View (1 Stream)</option>
+                            <option value="grid-2x2">2x2 Grid (Max 4)</option>
+                            <option value="grid-2x3">2x3 Grid (Max 6)</option>
+                            <option value="grid-2x4">2x4 Grid (Max 8)</option>
+                            <option value="grid-3x3">3x3 Grid (Max 9)</option>
+                            <option value="grid-4x4">4x4 Grid (Max 16)</option>
+                            <option value="layout-1-5">1 Large + 5 Small (Max 6)</option>
+                            <option value="layout-2-3">2 Large + 3 Small (Max 5)</option>
+                        </select>
+                    </div>
+
+                    <!-- Dropdown Presets Selector -->
+                    <div class="layout-selector-container" id="container-preset-select" style="gap: 6px;">
+                        <span class="layout-label">Preset:</span>
+                        <select id="preset-select-dropdown" onchange="handlePresetChange(this.value)" class="layout-dropdown" style="max-width: 140px; padding-right: 25px;">
+                            <option value="">-- Load Preset --</option>
+                        </select>
+                        <button class="btn" onclick="promptSavePreset()" title="Save current layout as preset" style="padding: 8px 10px; min-width: 36px; display: flex; align-items: center; justify-content: center; height: 34px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- Sidebar Toggle Button -->
+                    <button class="btn" id="btn-toggle-sidebar" onclick="toggleSidebar()" title="Toggle Stream Sidebar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-sidebar"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+                        <span>Streams Sidebar</span>
+                    </button>
+
+                    <!-- Navigation views -->
+                    <button class="btn" id="btn-browser-view" onclick="toggleBrowserView()">Browse Streams</button>
+                    <button class="btn" id="btn-weather-view" onclick="toggleWeatherView()">Weather Forecast</button>
+                    
+                    <!-- Execution actions -->
+                    <button class="btn" id="btn-refresh-all" onclick="location.reload()" title="Reload all players">Refresh All</button>
+                    <button class="btn" id="cycle-btn" onclick="toggleCycle()">Auto-Cycle: OFF</button>
+                    <button class="btn" id="btn-fullscreen-all" onclick="toggleFS()">Fullscreen</button>
+                    
+                    <!-- Settings Gear Button -->
+                    <button class="btn" id="btn-settings" onclick="openSettings()" title="Configuration Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span>Console Settings</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -382,6 +383,6 @@
     <!-- Default Streams Data -->
     <script src="streams.js"></script>
     
-    <script src="app.js?v=1.1.0"></script>
+    <script src="app.js?v=1.1.1"></script>
 </body>
 </html>
