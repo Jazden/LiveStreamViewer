@@ -272,13 +272,10 @@
                 })
                 .catch(err => {
                     console.warn('Failed to load guest view counter:', err);
-                    const counterEl = document.getElementById('visitor-counter');
-                    if (counterEl) {
-                        counterEl.style.display = 'none';
-                        const divider = counterEl.previousElementSibling;
-                        if (divider && divider.classList.contains('info-divider')) {
-                            divider.style.display = 'none';
-                        }
+                    const counterValEl = document.getElementById('visitor-count-value');
+                    if (counterValEl) {
+                        counterValEl.innerText = 'Unavailable';
+                        counterValEl.style.color = 'var(--text-muted)';
                     }
                 });
         }
