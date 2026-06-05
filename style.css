@@ -2267,4 +2267,73 @@
             box-shadow: 0 0 8px var(--accent);
         }
 
+        /* Virtual TV Grid Arrange Tab Styles */
+        .remote-virtual-grid-container {
+            display: grid;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            min-height: 140px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .remote-virtual-slot {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1.5px dashed rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 95px;
+            padding: 10px 8px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            user-select: none;
+        }
+
+        .remote-virtual-slot.active {
+            background: rgba(6, 182, 212, 0.05);
+            border: 1.5px solid rgba(6, 182, 212, 0.25);
+            color: var(--text-main);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .remote-virtual-slot:hover,
+        .remote-virtual-slot.drag-over {
+            border-color: var(--accent);
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .remote-draggable-item {
+            cursor: grab;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .remote-draggable-item:active {
+            cursor: grabbing;
+        }
+
+        .remote-draggable-item.selected {
+            border-color: var(--accent) !important;
+            background: rgba(6, 182, 212, 0.08) !important;
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.2) !important;
+        }
+
+        .remote-draggable-item.dragging {
+            opacity: 0.4;
+            transform: scale(0.98);
+        }
+
 

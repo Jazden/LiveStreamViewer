@@ -3242,6 +3242,16 @@
                         renderSidebarStreams();
                     }
                     break;
+                case 'moveStream':
+                    if (msg.data && msg.data.id && msg.data.direction) {
+                        moveStream(msg.data.id, msg.data.direction);
+                    }
+                    break;
+                case 'swapStreams':
+                    if (msg.data && msg.data.id1 && msg.data.id2) {
+                        swapStreams(msg.data.id1, msg.data.id2);
+                    }
+                    break;
             }
             sendMqttSync();
         }
@@ -3445,6 +3455,8 @@
             renderRemoteActiveStreamsList();
             renderRemoteLibraryStreamsList();
             renderRemotePresetsList();
+            renderRemoteVirtualGrid();
+            renderRemoteArrangeLibraryList();
         }
 
         function renderRemoteActiveStreamsList() {
@@ -3470,6 +3482,12 @@
                 </div>`;
 
                 const actionsHtml = `<div class="remote-item-actions">
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'up' })" title="Move Up" style="font-size: 0.75rem;">
+                        ▲
+                    </button>
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'down' })" title="Move Down" style="font-size: 0.75rem;">
+                        ▼
+                    </button>
                     <button class="remote-action-btn ${playerStatus.isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })" title="Play / Pause">
                         ${playerStatus.isPlaying ? '⏸️' : '▶️'}
                     </button>
@@ -3613,6 +3631,174 @@
             window.location.href = window.location.pathname + "?view=mobile&pair=" + code;
         }
 
+        // --- MOBILE REMOTE ARRANGE / DRAG AND DROP ACTIONS ---
+        let remoteDragSourceId = null;
+        let selectedRemoteStreamId = null;
+
+        function handleRemoteDragStart(e, streamId) {
+            remoteDragSourceId = streamId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', streamId);
+            
+            // Visual feedback on start dragging
+            const item = document.querySelector(`[ondragstart*="${streamId}"]`);
+            if (item) item.classList.add('dragging');
+        }
+
+        function handleRemoteDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.currentTarget.classList.add('drag-over');
+            return false;
+        }
+
+        function handleRemoteDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleRemoteDrop(e, slotIndex, targetStreamId) {
+            e.stopPropagation();
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            // Clean up visual dragging state
+            document.querySelectorAll('.remote-draggable-item, .remote-virtual-slot').forEach(item => {
+                item.classList.remove('dragging');
+            });
+
+            if (!remoteDragSourceId) return false;
+
+            if (targetStreamId) {
+                // There is a stream in this slot. Swap them!
+                if (remoteDragSourceId !== targetStreamId) {
+                    sendRemoteCommand('swapStreams', { id1: remoteDragSourceId, id2: targetStreamId });
+                }
+            } else {
+                // Empty slot. Just turn the dragged stream active!
+                const draggedStream = remoteState.streams.find(s => s.id === remoteDragSourceId);
+                if (draggedStream && !draggedStream.active) {
+                    sendRemoteCommand('toggleStream', { streamId: remoteDragSourceId, checked: true });
+                }
+            }
+            remoteDragSourceId = null;
+            return false;
+        }
+
+        function handleRemoteSlotClick(slotIndex, streamId) {
+            if (selectedRemoteStreamId) {
+                if (streamId) {
+                    // Swap
+                    if (selectedRemoteStreamId !== streamId) {
+                        sendRemoteCommand('swapStreams', { id1: selectedRemoteStreamId, id2: streamId });
+                    }
+                } else {
+                    // Turn active (add to empty slot)
+                    const draggedStream = remoteState.streams.find(s => s.id === selectedRemoteStreamId);
+                    if (draggedStream && !draggedStream.active) {
+                        sendRemoteCommand('toggleStream', { streamId: selectedRemoteStreamId, checked: true });
+                    }
+                }
+                
+                // Deselect
+                selectedRemoteStreamId = null;
+                renderRemoteArrangeLibraryList();
+            }
+        }
+
+        function handleRemoteLibraryItemClick(streamId) {
+            if (selectedRemoteStreamId === streamId) {
+                selectedRemoteStreamId = null;
+            } else {
+                selectedRemoteStreamId = streamId;
+            }
+            renderRemoteArrangeLibraryList();
+        }
+
+        function renderRemoteVirtualGrid() {
+            const gridEl = document.getElementById('remote-virtual-grid');
+            if (!gridEl) return;
+            gridEl.innerHTML = '';
+
+            const layout = remoteState.layout || 'cinema';
+            const capacity = LAYOUT_CAPACITIES[layout] || 4;
+            const activeStreams = (remoteState.streams || []).filter(s => s.active);
+
+            // Determine grid columns
+            let cols = 2;
+            if (capacity === 1) cols = 1;
+            else if (capacity > 6) cols = 3;
+            gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            for (let i = 0; i < capacity; i++) {
+                const stream = activeStreams[i];
+                const slot = document.createElement('div');
+                
+                if (stream) {
+                    slot.className = 'remote-virtual-slot active';
+                    slot.draggable = true;
+                    slot.setAttribute('ondragstart', `handleRemoteDragStart(event, '${stream.id}')`);
+                    slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
+                    slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
+                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, '${stream.id}')`);
+                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, '${stream.id}')`);
+                    
+                    slot.innerHTML = `
+                        <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; font-weight: 700;">Window ${i + 1}</div>
+                        <div style="font-size: 0.85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; color: var(--text-main);">${stream.name}</div>
+                        <button onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: false })" style="background: none; border: none; color: #ef4444; font-size: 0.75rem; margin-top: 6px; cursor: pointer; padding: 2px 6px;">Remove</button>
+                    `;
+                } else {
+                    slot.className = 'remote-virtual-slot';
+                    slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
+                    slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
+                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, null)`);
+                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, null)`);
+                    
+                    slot.innerHTML = `
+                        <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Window ${i + 1}</div>
+                        <div style="font-size: 0.85rem; font-style: italic;">Empty</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">Drag/Tap here</div>
+                    `;
+                }
+                gridEl.appendChild(slot);
+            }
+        }
+
+        function renderRemoteArrangeLibraryList() {
+            const listEl = document.getElementById('remote-arrange-library-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const streams = remoteState.streams || [];
+            if (streams.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 10px; text-align: center;">No channels in library.</div>';
+                return;
+            }
+
+            streams.forEach(stream => {
+                const item = document.createElement('div');
+                const isSelected = selectedRemoteStreamId === stream.id;
+                
+                item.className = 'remote-list-item remote-draggable-item ' + (isSelected ? 'selected' : '');
+                item.draggable = true;
+                item.setAttribute('ondragstart', `handleRemoteDragStart(event, '${stream.id}')`);
+                item.setAttribute('onclick', `handleRemoteLibraryItemClick('${stream.id}')`);
+
+                const titleHtml = `<div class="remote-item-info">
+                    <div class="remote-item-title">${stream.name}</div>
+                    <div class="remote-item-desc">${stream.category} • ${stream.active ? 'ACTIVE' : 'INACTIVE'}</div>
+                </div>`;
+
+                const indicatorHtml = `<div class="remote-item-actions" style="font-size: 1.1rem; color: var(--text-muted); margin-right: 4px;">
+                    ${stream.active ? '🟢' : '⚪'}
+                </div>`;
+
+                item.innerHTML = titleHtml + indicatorHtml;
+                listEl.appendChild(item);
+            });
+        }
+
         window.openPairingModal = openPairingModal;
         window.closePairingModal = closePairingModal;
         window.closePairingOnOverlay = closePairingOnOverlay;
@@ -3623,6 +3809,15 @@
         window.handleRemoteAddStream = handleRemoteAddStream;
         window.sendMqttSync = sendMqttSync;
         window.connectWithInputCode = connectWithInputCode;
+
+        window.handleRemoteDragStart = handleRemoteDragStart;
+        window.handleRemoteDragOver = handleRemoteDragOver;
+        window.handleRemoteDragLeave = handleRemoteDragLeave;
+        window.handleRemoteDrop = handleRemoteDrop;
+        window.handleRemoteSlotClick = handleRemoteSlotClick;
+        window.handleRemoteLibraryItemClick = handleRemoteLibraryItemClick;
+        window.renderRemoteVirtualGrid = renderRemoteVirtualGrid;
+        window.renderRemoteArrangeLibraryList = renderRemoteArrangeLibraryList;
 
         // Run application
         initApp();
