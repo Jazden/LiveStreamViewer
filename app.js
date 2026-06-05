@@ -34,6 +34,9 @@
 
         // Active Player instances reference
         let activePlayers = {};
+        let tvSyncMasterCode = '';
+        let tvOriginalStateBackup = null;
+        let lastSyncedMasterJson = '';
         let activeWeatherAnimations = {};
         let cinemaActiveStreamId = null;
         let cycleInterval = null;
@@ -69,6 +72,13 @@
         }
 
         function persistState() {
+            if (typeof tvSyncMasterCode !== 'undefined' && tvSyncMasterCode) {
+                // In sync mode, do not write the master TV's configurations into our cookies!
+                if (window.sendMqttSync) {
+                    window.sendMqttSync();
+                }
+                return;
+            }
             setCookie('stream_layout', appState.layout, 365);
             
             // Save user-configured streams (isDefault === false)
@@ -3114,6 +3124,20 @@
                             console.error('[TV Pairing] Error parsing message:', e);
                         }
                     }
+
+                    if (typeof tvSyncMasterCode !== 'undefined' && tvSyncMasterCode) {
+                        const masterTopic = getMqttTopic(tvSyncMasterCode);
+                        if (receivedTopic === masterTopic) {
+                            try {
+                                const data = JSON.parse(message.toString());
+                                if (data.from === 'tv' && data.type === 'sync') {
+                                    handleMasterTVSync(data);
+                                }
+                            } catch (e) {
+                                console.error('[TV Sync] Error parsing master TV sync:', e);
+                            }
+                        }
+                    }
                 });
 
                 tvMqttClient.on('close', () => {
@@ -3316,6 +3340,9 @@
             if (!modal) return;
             modal.classList.add('open');
 
+            // Update TV-to-TV Sync UI elements
+            updateTVSyncUI();
+
             const pairingUrl = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
             
             const urlText = document.getElementById('pairing-url-text');
@@ -3376,6 +3403,185 @@
                 initTVPairing();
                 openPairingModal();
             }
+        }
+
+        function connectTVSync() {
+            const inputEl = document.getElementById('tv-sync-code-input');
+            if (!inputEl) return;
+            const code = inputEl.value.trim();
+            
+            if (code.length !== 6 || isNaN(code)) {
+                alert('Please enter a valid 6-digit TV pairing code.');
+                return;
+            }
+
+            if (code === tvPairingCode) {
+                alert('Cannot sync a TV to itself. Please enter another TV\'s code.');
+                return;
+            }
+
+            // Backup current state if not already synced
+            if (!tvSyncMasterCode) {
+                tvOriginalStateBackup = {
+                    layout: appState.layout,
+                    streams: JSON.parse(JSON.stringify(appState.streams)),
+                    cinemaActiveStreamId: cinemaActiveStreamId
+                };
+            }
+
+            // Set master code
+            tvSyncMasterCode = code;
+            lastSyncedMasterJson = '';
+
+            // Subscribe to the master's MQTT topic
+            const masterTopic = getMqttTopic(code);
+            if (tvMqttClient && tvMqttClient.connected) {
+                tvMqttClient.subscribe(masterTopic, (err) => {
+                    if (!err) {
+                        console.log(`[TV Sync] Successfully subscribed to master topic: ${masterTopic}`);
+                        
+                        // Send ping to master topic so it replies with sync data immediately
+                        const pingPayload = {
+                            from: 'remote',
+                            action: 'ping'
+                        };
+                        tvMqttClient.publish(masterTopic, JSON.stringify(pingPayload));
+                    } else {
+                        console.error('[TV Sync] Failed to subscribe to master topic:', err);
+                    }
+                });
+            }
+
+            // Update UI status
+            updateTVSyncUI();
+        }
+
+        function disconnectTVSync() {
+            if (!tvSyncMasterCode) return;
+
+            // Unsubscribe from master topic
+            const masterTopic = getMqttTopic(tvSyncMasterCode);
+            if (tvMqttClient && tvMqttClient.connected) {
+                tvMqttClient.unsubscribe(masterTopic);
+            }
+
+            // Clear master code
+            tvSyncMasterCode = '';
+            lastSyncedMasterJson = '';
+
+            // Restore original state (forget master settings)
+            if (tvOriginalStateBackup) {
+                appState.layout = tvOriginalStateBackup.layout;
+                appState.streams = tvOriginalStateBackup.streams;
+                cinemaActiveStreamId = tvOriginalStateBackup.cinemaActiveStreamId;
+                tvOriginalStateBackup = null;
+            }
+
+            // Re-render local TV state
+            renderActiveStreams();
+            renderSidebarStreams();
+            populateSettings();
+
+            // Clear input field
+            const inputEl = document.getElementById('tv-sync-code-input');
+            if (inputEl) inputEl.value = '';
+
+            // Update UI status
+            updateTVSyncUI();
+        }
+
+        function updateTVSyncUI() {
+            const setupContainer = document.getElementById('tv-sync-setup-container');
+            const activeContainer = document.getElementById('tv-sync-active-container');
+            const activeCodeEl = document.getElementById('tv-sync-active-code');
+
+            if (tvSyncMasterCode) {
+                if (setupContainer) setupContainer.classList.add('hidden');
+                if (activeContainer) activeContainer.classList.remove('hidden');
+                if (activeCodeEl) activeCodeEl.innerText = `Code: ${tvSyncMasterCode}`;
+            } else {
+                if (setupContainer) setupContainer.classList.remove('hidden');
+                if (activeContainer) activeContainer.classList.add('hidden');
+            }
+        }
+
+        function handleMasterTVSync(data) {
+            // Check if layout or active streams list changed
+            const currentSyncJson = JSON.stringify({
+                layout: data.layout,
+                streams: data.streams.filter(s => s.active).map(s => s.id)
+            });
+
+            if (currentSyncJson !== lastSyncedMasterJson) {
+                lastSyncedMasterJson = currentSyncJson;
+                
+                appState.layout = data.layout;
+                appState.streams = data.streams;
+                
+                renderActiveStreams();
+                renderSidebarStreams();
+                populateSettings();
+            }
+
+            // Always apply play/pause/mute/volume state updates after short delay
+            setTimeout(() => {
+                applyMasterPlayerStates(data.activePlayersStatus);
+            }, 500);
+        }
+
+        function applyMasterPlayerStates(activePlayersStatus) {
+            if (!activePlayersStatus) return;
+            
+            Object.keys(activePlayersStatus).forEach(streamId => {
+                const status = activePlayersStatus[streamId];
+                const pObj = activePlayers[streamId];
+                if (!pObj) return;
+
+                // 1. Sync volume
+                if (status.volume !== undefined && pObj.volume !== status.volume) {
+                    setStreamVolume(streamId, status.volume);
+                }
+
+                // 2. Sync mute
+                if (status.isMuted !== undefined && pObj.muted !== status.isMuted) {
+                    pObj.muted = status.isMuted;
+                    
+                    const btn = document.querySelector(`#card-${streamId} .volume-mute-btn`);
+                    const slider = document.querySelector(`#card-${streamId} .volume-slider`);
+                    updateMuteBtnIcon(btn, status.isMuted);
+                    if (slider) slider.value = status.isMuted ? 0 : pObj.volume;
+
+                    if (pObj.type === 'hls' && pObj.instance) {
+                        pObj.instance.muted(status.isMuted);
+                    } else if (pObj.type === 'youtube' && pObj.instance) {
+                        if (status.isMuted) pObj.instance.mute();
+                        else pObj.instance.unMute();
+                    } else if (pObj.type === 'twitch' && pObj.instance) {
+                        pObj.instance.setMuted(status.isMuted);
+                    }
+                    updateFloatingTabVolume(streamId);
+                }
+
+                // 3. Sync play/pause
+                if (status.isPlaying !== undefined) {
+                    let isLocalPlaying = true;
+                    if (pObj.type === 'hls' && pObj.instance) {
+                        isLocalPlaying = !pObj.instance.paused();
+                        if (status.isPlaying && !isLocalPlaying) {
+                            pObj.instance.play();
+                        } else if (!status.isPlaying && isLocalPlaying) {
+                            pObj.instance.pause();
+                        }
+                    } else if (pObj.type === 'youtube' && pObj.instance) {
+                        isLocalPlaying = pObj.instance.getPlayerState && pObj.instance.getPlayerState() === 1;
+                        if (status.isPlaying && !isLocalPlaying) {
+                            pObj.instance.playVideo();
+                        } else if (!status.isPlaying && isLocalPlaying) {
+                            pObj.instance.pauseVideo();
+                        }
+                    }
+                }
+            });
         }
 
         // --- MOBILE REMOTE CONTROLLER SIDE ---
@@ -3985,6 +4191,9 @@
         window.openRemoteLayoutSelector = openRemoteLayoutSelector;
         window.closeRemoteLayoutSelector = closeRemoteLayoutSelector;
         window.closeRemoteLayoutSelectorOnOverlay = closeRemoteLayoutSelectorOnOverlay;
+        window.connectTVSync = connectTVSync;
+        window.disconnectTVSync = disconnectTVSync;
+        window.updateTVSyncUI = updateTVSyncUI;
 
         // Run application
         initApp();
