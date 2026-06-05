@@ -1799,6 +1799,29 @@
             renderSidebarStreams();
         }
 
+        function placeStreamAtActiveIndex(streamId, slotIndex) {
+            const stream = appState.streams.find(s => s.id === streamId);
+            if (!stream) return;
+
+            // Make sure the stream is active
+            stream.active = true;
+
+            // Get all active streams excluding the one we are placing
+            const activeStreams = appState.streams.filter(s => s.active && s.id !== streamId);
+
+            // Insert the stream at the target slot index among other active streams
+            activeStreams.splice(slotIndex, 0, stream);
+
+            // Reconstruct appState.streams: active streams in new order, then inactive streams
+            const inactiveStreams = appState.streams.filter(s => !s.active);
+            appState.streams = [...activeStreams, ...inactiveStreams];
+
+            persistState();
+            populateSettings();
+            renderActiveStreams();
+            renderSidebarStreams();
+        }
+
         function deleteStream(id) {
             const index = appState.streams.findIndex(s => s.id === id);
             if (index === -1) return;
@@ -3252,6 +3275,11 @@
                         swapStreams(msg.data.id1, msg.data.id2);
                     }
                     break;
+                case 'placeStream':
+                    if (msg.data && msg.data.streamId && msg.data.slotIndex !== undefined) {
+                        placeStreamAtActiveIndex(msg.data.streamId, msg.data.slotIndex);
+                    }
+                    break;
             }
             sendMqttSync();
         }
@@ -3675,11 +3703,8 @@
                     sendRemoteCommand('swapStreams', { id1: remoteDragSourceId, id2: targetStreamId });
                 }
             } else {
-                // Empty slot. Just turn the dragged stream active!
-                const draggedStream = remoteState.streams.find(s => s.id === remoteDragSourceId);
-                if (draggedStream && !draggedStream.active) {
-                    sendRemoteCommand('toggleStream', { streamId: remoteDragSourceId, checked: true });
-                }
+                // Empty slot. Place it at the target slot index!
+                sendRemoteCommand('placeStream', { streamId: remoteDragSourceId, slotIndex: slotIndex });
             }
             remoteDragSourceId = null;
             return false;
@@ -3693,11 +3718,8 @@
                         sendRemoteCommand('swapStreams', { id1: selectedRemoteStreamId, id2: streamId });
                     }
                 } else {
-                    // Turn active (add to empty slot)
-                    const draggedStream = remoteState.streams.find(s => s.id === selectedRemoteStreamId);
-                    if (draggedStream && !draggedStream.active) {
-                        sendRemoteCommand('toggleStream', { streamId: selectedRemoteStreamId, checked: true });
-                    }
+                    // Empty slot. Place it!
+                    sendRemoteCommand('placeStream', { streamId: selectedRemoteStreamId, slotIndex: slotIndex });
                 }
                 
                 // Deselect
@@ -3724,18 +3746,26 @@
             const capacity = LAYOUT_CAPACITIES[layout] || 4;
             const activeStreams = (remoteState.streams || []).filter(s => s.active);
 
-            // Determine grid columns
-            let cols = 2;
-            if (capacity === 1) cols = 1;
-            else if (capacity > 6) cols = 3;
-            gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            // Set the class corresponding to the active TV layout and clear any inline templates
+            gridEl.className = 'remote-virtual-grid-container ' + layout;
+            gridEl.style.gridTemplateColumns = '';
+
+            const labelTextFunc = (idx) => capacity > 6 ? `#${idx + 1}` : `Window ${idx + 1}`;
 
             for (let i = 0; i < capacity; i++) {
                 const stream = activeStreams[i];
                 const slot = document.createElement('div');
                 
+                let slotClass = 'remote-virtual-slot';
+                if (layout === 'layout-1-5') {
+                    if (i === 0) slotClass += ' large';
+                } else if (layout === 'layout-2-3') {
+                    if (i < 2) slotClass += ' large';
+                    else slotClass += ' small';
+                }
+
                 if (stream) {
-                    slot.className = 'remote-virtual-slot active';
+                    slot.className = slotClass + ' active';
                     slot.draggable = true;
                     slot.setAttribute('ondragstart', `handleRemoteDragStart(event, '${stream.id}')`);
                     slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
@@ -3744,21 +3774,20 @@
                     slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, '${stream.id}')`);
                     
                     slot.innerHTML = `
-                        <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; font-weight: 700;">Window ${i + 1}</div>
-                        <div style="font-size: 0.85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; color: var(--text-main);">${stream.name}</div>
-                        <button onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: false })" style="background: none; border: none; color: #ef4444; font-size: 0.75rem; margin-top: 6px; cursor: pointer; padding: 2px 6px;">Remove</button>
+                        <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                        <div class="remote-slot-name">${stream.name}</div>
+                        <button class="remote-slot-remove-btn" onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: false })" title="Remove stream">✕</button>
                     `;
                 } else {
-                    slot.className = 'remote-virtual-slot';
+                    slot.className = slotClass;
                     slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
                     slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
                     slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, null)`);
                     slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, null)`);
                     
                     slot.innerHTML = `
-                        <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Window ${i + 1}</div>
-                        <div style="font-size: 0.85rem; font-style: italic;">Empty</div>
-                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">Drag/Tap here</div>
+                        <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                        <div class="remote-slot-empty">Empty</div>
                     `;
                 }
                 gridEl.appendChild(slot);
