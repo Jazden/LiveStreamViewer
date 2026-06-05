@@ -3608,14 +3608,17 @@
                 pairedDisplays = [];
             }
 
-            if (currentCode && currentCode.trim() !== '') {
-                const exists = pairedDisplays.some(d => d.code === currentCode);
-                if (!exists) {
-                    pairedDisplays.push({
-                        name: 'Display ' + currentCode,
-                        code: currentCode
-                    });
-                    savePairedDisplays();
+            if (currentCode) {
+                const codeStr = String(currentCode).trim();
+                if (codeStr !== '') {
+                    const exists = pairedDisplays.some(d => d.code === codeStr);
+                    if (!exists) {
+                        pairedDisplays.push({
+                            name: 'Display ' + codeStr,
+                            code: codeStr
+                        });
+                        savePairedDisplays();
+                    }
                 }
             }
         }
