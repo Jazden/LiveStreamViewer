@@ -270,9 +270,16 @@
             initTVPairing();
 
             // Auto-open pairing modal if launching TV view for the first time
-            const launchedBefore = localStorage.getItem('tv_launched_before');
+            let launchedBefore = null;
+            try {
+                launchedBefore = localStorage.getItem('tv_launched_before');
+                if (!launchedBefore) {
+                    localStorage.setItem('tv_launched_before', 'true');
+                }
+            } catch (e) {
+                console.error('[Storage Error] Failed to read/write tv_launched_before:', e);
+            }
             if (!launchedBefore) {
-                localStorage.setItem('tv_launched_before', 'true');
                 setTimeout(openPairingModal, 800);
             }
         }
@@ -3597,14 +3604,16 @@
         let pairedDisplays = [];
 
         function loadPairedDisplays(currentCode) {
-            const saved = localStorage.getItem('remote_paired_displays');
-            if (saved) {
-                try {
+            pairedDisplays = [];
+            try {
+                const saved = localStorage.getItem('remote_paired_displays');
+                if (saved) {
                     pairedDisplays = JSON.parse(saved);
-                } catch (e) {
-                    pairedDisplays = [];
                 }
-            } else {
+            } catch (e) {
+                console.error('[Storage Error] Failed to read from localStorage:', e);
+            }
+            if (!Array.isArray(pairedDisplays)) {
                 pairedDisplays = [];
             }
 
@@ -3624,7 +3633,11 @@
         }
 
         function savePairedDisplays() {
-            localStorage.setItem('remote_paired_displays', JSON.stringify(pairedDisplays));
+            try {
+                localStorage.setItem('remote_paired_displays', JSON.stringify(pairedDisplays));
+            } catch (e) {
+                console.error('[Storage Error] Failed to write to localStorage:', e);
+            }
         }
 
         function renderDisplaySwitcherHeader() {
@@ -3731,7 +3744,9 @@
         }
 
         function removePairing(code) {
-            if (confirm(`Are you sure you want to remove Display "${pairedDisplays.find(d => d.code === code)?.name || code}"?`)) {
+            const displayObj = pairedDisplays.find(d => d.code === code);
+            const displayName = displayObj ? displayObj.name : code;
+            if (confirm(`Are you sure you want to remove Display "${displayName}"?`)) {
                 pairedDisplays = pairedDisplays.filter(d => d.code !== code);
                 savePairedDisplays();
                 
@@ -3823,7 +3838,11 @@
             const slaveTopic = getMqttTopic(slaveCode);
             if (remoteMqttClient && remoteMqttClient.connected) {
                 remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
-                alert(`Command sent: telling Display "${pairedDisplays.find(d => d.code === slaveCode)?.name || slaveCode}" to sync with Master Display "${pairedDisplays.find(d => d.code === masterCode)?.name || masterCode}".`);
+                const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+                const slaveName = slaveObj ? slaveObj.name : slaveCode;
+                const masterObj = pairedDisplays.find(d => d.code === masterCode);
+                const masterName = masterObj ? masterObj.name : masterCode;
+                alert(`Command sent: telling Display "${slaveName}" to sync with Master Display "${masterName}".`);
             } else {
                 alert('MQTT remote client not connected. Please reconnect first.');
             }
@@ -3847,7 +3866,9 @@
             const slaveTopic = getMqttTopic(slaveCode);
             if (remoteMqttClient && remoteMqttClient.connected) {
                 remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
-                alert(`Command sent: telling Display "${pairedDisplays.find(d => d.code === slaveCode)?.name || slaveCode}" to disconnect from master sync.`);
+                const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+                const slaveName = slaveObj ? slaveObj.name : slaveCode;
+                alert(`Command sent: telling Display "${slaveName}" to disconnect from master sync.`);
             } else {
                 alert('MQTT remote client not connected. Please reconnect first.');
             }
