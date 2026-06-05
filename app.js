@@ -3330,6 +3330,14 @@
                         setStreamVolume(msg.data.streamId, parseInt(msg.data.volume));
                     }
                     break;
+                case 'syncToMaster':
+                    if (msg.data && msg.data.masterCode) {
+                        connectTVSync(msg.data.masterCode);
+                    }
+                    break;
+                case 'disconnectMaster':
+                    disconnectTVSync();
+                    break;
             }
             sendMqttSync();
         }
@@ -3405,10 +3413,12 @@
             }
         }
 
-        function connectTVSync() {
-            const inputEl = document.getElementById('tv-sync-code-input');
-            if (!inputEl) return;
-            const code = inputEl.value.trim();
+        function connectTVSync(code) {
+            if (!code) {
+                const inputEl = document.getElementById('tv-sync-code-input');
+                if (inputEl) code = inputEl.value.trim();
+            }
+            if (!code) return;
             
             if (code.length !== 6 || isNaN(code)) {
                 alert('Please enter a valid 6-digit TV pairing code.');
@@ -3584,6 +3594,253 @@
             });
         }
 
+        let pairedDisplays = [];
+
+        function loadPairedDisplays(currentCode) {
+            const saved = localStorage.getItem('remote_paired_displays');
+            if (saved) {
+                try {
+                    pairedDisplays = JSON.parse(saved);
+                } catch (e) {
+                    pairedDisplays = [];
+                }
+            } else {
+                pairedDisplays = [];
+            }
+
+            if (currentCode && currentCode.trim() !== '') {
+                const exists = pairedDisplays.some(d => d.code === currentCode);
+                if (!exists) {
+                    pairedDisplays.push({
+                        name: 'Display ' + currentCode,
+                        code: currentCode
+                    });
+                    savePairedDisplays();
+                }
+            }
+        }
+
+        function savePairedDisplays() {
+            localStorage.setItem('remote_paired_displays', JSON.stringify(pairedDisplays));
+        }
+
+        function renderDisplaySwitcherHeader() {
+            const container = document.getElementById('remote-code-badge');
+            if (!container) return;
+            
+            if (pairedDisplays.length <= 1) {
+                container.style.background = 'rgba(6, 182, 212, 0.15)';
+                container.style.padding = '4px 8px';
+                container.style.border = '1px solid var(--border-color)';
+                container.innerText = remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED';
+            } else {
+                container.style.background = 'none';
+                container.style.padding = '0';
+                container.style.border = 'none';
+                
+                let optionsHtml = '';
+                pairedDisplays.forEach(d => {
+                    const isSelected = d.code === remotePairCode;
+                    optionsHtml += `<option value="${d.code}" ${isSelected ? 'selected' : ''}>${d.name}</option>`;
+                });
+                
+                container.innerHTML = `
+                    <select id="remote-display-switcher-select" onchange="switchRemotePairing(this.value)" style="background: rgba(6, 182, 212, 0.15); border: 1px solid var(--border-color); color: var(--accent); padding: 6px 10px; border-radius: 6px; font-family: inherit; font-size: 0.85rem; font-weight: 700; outline: none; cursor: pointer; max-width: 140px; box-sizing: border-box;">
+                        ${optionsHtml}
+                    </select>
+                `;
+            }
+        }
+
+        function switchRemotePairing(newCode) {
+            initMobileRemote(newCode);
+        }
+
+        function addNewPairingFromSettings() {
+            const inputEl = document.getElementById('remote-add-pairing-input');
+            if (!inputEl) return;
+            const code = inputEl.value.trim();
+            
+            if (code.length !== 6 || isNaN(code)) {
+                alert('Please enter a valid 6-digit pairing code.');
+                return;
+            }
+
+            const exists = pairedDisplays.some(d => d.code === code);
+            if (exists) {
+                alert('This display is already paired.');
+                return;
+            }
+
+            pairedDisplays.push({
+                name: 'Display ' + code,
+                code: code
+            });
+            savePairedDisplays();
+
+            inputEl.value = '';
+
+            renderDisplaySwitcherHeader();
+            renderPairedDisplaysSettings();
+            updateTVSyncDropdowns();
+            
+            switchRemotePairing(code);
+            alert(`Display ${code} added and connected!`);
+        }
+
+        function removePairing(code) {
+            if (confirm(`Are you sure you want to remove Display "${pairedDisplays.find(d => d.code === code)?.name || code}"?`)) {
+                pairedDisplays = pairedDisplays.filter(d => d.code !== code);
+                savePairedDisplays();
+                
+                if (remotePairCode === code) {
+                    const nextCode = pairedDisplays.length > 0 ? pairedDisplays[0].code : '';
+                    switchRemotePairing(nextCode);
+                } else {
+                    renderDisplaySwitcherHeader();
+                    renderPairedDisplaysSettings();
+                    updateTVSyncDropdowns();
+                }
+            }
+        }
+
+        function renamePairing(code) {
+            const display = pairedDisplays.find(d => d.code === code);
+            if (!display) return;
+            
+            const newName = prompt(`Enter a new name for Display "${display.name}":`, display.name);
+            if (newName) {
+                const trimmed = newName.trim();
+                if (trimmed) {
+                    display.name = trimmed;
+                    savePairedDisplays();
+                    
+                    renderDisplaySwitcherHeader();
+                    renderPairedDisplaysSettings();
+                    updateTVSyncDropdowns();
+                }
+            }
+        }
+
+        function updateTVSyncDropdowns() {
+            const slaveSelect = document.getElementById('remote-sync-slave-select');
+            const masterSelect = document.getElementById('remote-sync-master-select');
+            if (!slaveSelect || !masterSelect) return;
+            
+            slaveSelect.innerHTML = '<option value="">-- Select Slave TV --</option>';
+            masterSelect.innerHTML = '<option value="">-- Select Master TV --</option>';
+
+            pairedDisplays.forEach(d => {
+                slaveSelect.innerHTML += `<option value="${d.code}">${d.name} (${d.code})</option>`;
+                masterSelect.innerHTML += `<option value="${d.code}">${d.name} (${d.code})</option>`;
+            });
+
+            masterSelect.innerHTML += '<option value="custom">-- Enter custom code... --</option>';
+        }
+
+        function remoteTriggerTVSync() {
+            const slaveSelect = document.getElementById('remote-sync-slave-select');
+            const masterSelect = document.getElementById('remote-sync-master-select');
+            if (!slaveSelect || !masterSelect) return;
+            
+            const slaveCode = slaveSelect.value;
+            let masterCode = masterSelect.value;
+
+            if (!slaveCode) {
+                alert('Please select a Slave TV.');
+                return;
+            }
+
+            if (masterSelect.value === 'custom') {
+                const customCode = prompt('Enter the 6-digit code of the Master TV:');
+                if (!customCode || customCode.trim().length !== 6 || isNaN(customCode)) {
+                    alert('Please enter a valid 6-digit pairing code.');
+                    return;
+                }
+                masterCode = customCode.trim();
+            }
+
+            if (!masterCode) {
+                alert('Please select or enter a Master TV code.');
+                return;
+            }
+
+            if (slaveCode === masterCode) {
+                alert('Cannot sync a TV to itself.');
+                return;
+            }
+
+            const payload = {
+                from: 'remote',
+                action: 'syncToMaster',
+                data: {
+                    masterCode: masterCode
+                }
+            };
+
+            const slaveTopic = getMqttTopic(slaveCode);
+            if (remoteMqttClient && remoteMqttClient.connected) {
+                remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
+                alert(`Command sent: telling Display "${pairedDisplays.find(d => d.code === slaveCode)?.name || slaveCode}" to sync with Master Display "${pairedDisplays.find(d => d.code === masterCode)?.name || masterCode}".`);
+            } else {
+                alert('MQTT remote client not connected. Please reconnect first.');
+            }
+        }
+
+        function remoteTriggerTVDisconnect() {
+            const slaveSelect = document.getElementById('remote-sync-slave-select');
+            if (!slaveSelect) return;
+            
+            const slaveCode = slaveSelect.value;
+            if (!slaveCode) {
+                alert('Please select a TV to disconnect.');
+                return;
+            }
+
+            const payload = {
+                from: 'remote',
+                action: 'disconnectMaster'
+            };
+
+            const slaveTopic = getMqttTopic(slaveCode);
+            if (remoteMqttClient && remoteMqttClient.connected) {
+                remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
+                alert(`Command sent: telling Display "${pairedDisplays.find(d => d.code === slaveCode)?.name || slaveCode}" to disconnect from master sync.`);
+            } else {
+                alert('MQTT remote client not connected. Please reconnect first.');
+            }
+        }
+
+        function renderPairedDisplaysSettings() {
+            const listEl = document.getElementById('remote-paired-displays-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            if (pairedDisplays.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">No displays paired yet.</div>';
+                return;
+            }
+
+            pairedDisplays.forEach(d => {
+                const item = document.createElement('div');
+                const isCurrent = d.code === remotePairCode;
+                item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
+                
+                const titleHtml = `<div class="remote-item-info">
+                    <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${d.name} ${isCurrent ? '🟢' : ''}</div>
+                    <div class="remote-item-desc">Code: ${d.code}</div>
+                </div>`;
+
+                const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-sm btn-secondary" onclick="renamePairing('${d.code}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
+                    <button class="btn btn-sm btn-danger" onclick="removePairing('${d.code}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
+                </div>`;
+
+                item.innerHTML = titleHtml + actionsHtml;
+                listEl.appendChild(item);
+            });
+        }
+
         // --- MOBILE REMOTE CONTROLLER SIDE ---
         let remoteMqttClient = null;
         let remotePairCode = '';
@@ -3591,6 +3848,23 @@
 
         function initMobileRemote(code) {
             document.body.classList.add('remote-mode');
+
+            if (remoteMqttClient) {
+                try {
+                    remoteMqttClient.end(true);
+                } catch (e) {}
+                remoteMqttClient = null;
+            }
+
+            // Load displays list
+            loadPairedDisplays(code);
+
+            // Render switcher in header
+            renderDisplaySwitcherHeader();
+
+            // Refresh settings lists
+            renderPairedDisplaysSettings();
+            updateTVSyncDropdowns();
 
             const container = document.getElementById('mobile-remote-container');
             if (container) container.classList.remove('hidden');
@@ -4194,6 +4468,12 @@
         window.connectTVSync = connectTVSync;
         window.disconnectTVSync = disconnectTVSync;
         window.updateTVSyncUI = updateTVSyncUI;
+        window.renamePairing = renamePairing;
+        window.removePairing = removePairing;
+        window.addNewPairingFromSettings = addNewPairingFromSettings;
+        window.remoteTriggerTVSync = remoteTriggerTVSync;
+        window.remoteTriggerTVDisconnect = remoteTriggerTVDisconnect;
+        window.switchRemotePairing = switchRemotePairing;
 
         // Run application
         initApp();
