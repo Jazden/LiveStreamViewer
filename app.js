@@ -3631,28 +3631,67 @@
             const container = document.getElementById('remote-code-badge');
             if (!container) return;
             
-            if (pairedDisplays.length <= 1) {
-                container.style.background = 'rgba(6, 182, 212, 0.15)';
-                container.style.padding = '4px 8px';
-                container.style.border = '1px solid var(--border-color)';
-                container.innerText = remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED';
-            } else {
-                container.style.background = 'none';
-                container.style.padding = '0';
-                container.style.border = 'none';
-                
-                let optionsHtml = '';
-                pairedDisplays.forEach(d => {
-                    const isSelected = d.code === remotePairCode;
-                    optionsHtml += `<option value="${d.code}" ${isSelected ? 'selected' : ''}>${d.name}</option>`;
-                });
-                
-                container.innerHTML = `
-                    <select id="remote-display-switcher-select" onchange="switchRemotePairing(this.value)" style="background: rgba(6, 182, 212, 0.15); border: 1px solid var(--border-color); color: var(--accent); padding: 6px 10px; border-radius: 6px; font-family: inherit; font-size: 0.85rem; font-weight: 700; outline: none; cursor: pointer; max-width: 140px; box-sizing: border-box;">
-                        ${optionsHtml}
-                    </select>
-                `;
+            const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+            const displayName = currentDisplay ? currentDisplay.name : (remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED');
+            
+            // Render a beautiful pill that prompts the switcher popup when clicked
+            container.innerHTML = `📺 <span style="margin-left: 2px;">${displayName}</span> <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
+        }
+
+        function openRemoteSwitcherPopup() {
+            const popup = document.getElementById('remote-switcher-popup');
+            if (!popup) return;
+            
+            const activeNameEl = document.getElementById('remote-switcher-active-name');
+            if (activeNameEl) {
+                const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+                activeNameEl.innerText = currentDisplay ? `${currentDisplay.name} (${currentDisplay.code})` : (remotePairCode ? `Display ${remotePairCode}` : 'None Connected');
             }
+
+            const listEl = document.getElementById('remote-switcher-list');
+            if (listEl) {
+                listEl.innerHTML = '';
+                if (pairedDisplays.length === 0) {
+                    listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 8px;">No displays paired yet.</div>';
+                } else {
+                    pairedDisplays.forEach(d => {
+                        const isCurrent = d.code === remotePairCode;
+                        const item = document.createElement('div');
+                        item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
+                        item.style.cursor = 'pointer';
+                        item.setAttribute('onclick', `selectDisplayFromSwitcher('${d.code}')`);
+                        
+                        const titleHtml = `<div class="remote-item-info">
+                            <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${d.name}</div>
+                            <div class="remote-item-desc">Code: ${d.code}</div>
+                        </div>`;
+                        
+                        const indicatorHtml = `<div class="remote-item-actions">
+                            ${isCurrent ? '<span style="color: var(--accent); font-weight: 700; font-size: 0.8rem;">Active 🟢</span>' : '<span style="color: var(--text-muted); font-size: 0.75rem;">Tap to Switch</span>'}
+                        </div>`;
+                        
+                        item.innerHTML = titleHtml + indicatorHtml;
+                        listEl.appendChild(item);
+                    });
+                }
+            }
+            popup.classList.add('open');
+        }
+
+        function closeRemoteSwitcherPopup() {
+            const popup = document.getElementById('remote-switcher-popup');
+            if (popup) popup.classList.remove('open');
+        }
+
+        function closeRemoteSwitcherOnOverlay(e) {
+            if (e.target === document.getElementById('remote-switcher-popup')) {
+                closeRemoteSwitcherPopup();
+            }
+        }
+
+        function selectDisplayFromSwitcher(code) {
+            switchRemotePairing(code);
+            closeRemoteSwitcherPopup();
         }
 
         function switchRemotePairing(newCode) {
@@ -4477,6 +4516,10 @@
         window.remoteTriggerTVSync = remoteTriggerTVSync;
         window.remoteTriggerTVDisconnect = remoteTriggerTVDisconnect;
         window.switchRemotePairing = switchRemotePairing;
+        window.openRemoteSwitcherPopup = openRemoteSwitcherPopup;
+        window.closeRemoteSwitcherPopup = closeRemoteSwitcherPopup;
+        window.closeRemoteSwitcherOnOverlay = closeRemoteSwitcherOnOverlay;
+        window.selectDisplayFromSwitcher = selectDisplayFromSwitcher;
 
         // Run application
         initApp();
