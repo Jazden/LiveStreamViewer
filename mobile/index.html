@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting to Mobile Remote...</title>
+    <style>
+        body {
+            background-color: #030712;
+            color: #9ca3af;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .loader {
+            text-align: center;
+        }
+        .spinner {
+            border: 3px solid rgba(6, 182, 212, 0.1);
+            border-top: 3px solid #06b6d4;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        // Preserve any query parameters or hash, redirect to parent with view=mobile
+        const search = window.location.search;
+        const hash = window.location.hash;
+        
+        let parentUrl = "../";
+        if (search) {
+            // Append view=mobile to existing params
+            if (search.includes('view=')) {
+                parentUrl += search.replace(/view=[^&]*/, 'view=mobile');
+            } else {
+                parentUrl += search + "&view=mobile";
+            }
+        } else {
+            parentUrl += "?view=mobile";
+        }
+        parentUrl += hash;
+        window.location.replace(parentUrl);
+    </script>
+</head>
+<body>
+    <div class="loader">
+        <div class="spinner"></div>
+        <p>Opening Console Remote...</p>
+    </div>
+</body>
+</html>

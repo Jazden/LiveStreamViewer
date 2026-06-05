@@ -101,10 +101,24 @@
                 mode: appState.rotatorMode,
                 interval: appState.rotatorInterval
             }), 365);
+
+            if (window.sendMqttSync) {
+                window.sendMqttSync();
+            }
         }
 
         // Initialize App
         function initApp() {
+            // Check query parameters to route to TV view or Mobile Remote view
+            const urlParams = new URLSearchParams(window.location.search);
+            const view = urlParams.get('view');
+            const pairCode = urlParams.get('pair');
+            
+            if (view === 'mobile' || (!view && pairCode)) {
+                initMobileRemote(pairCode);
+                return;
+            }
+
             // Load layout
             const savedLayout = getCookie('stream_layout');
             if (savedLayout) appState.layout = savedLayout;
@@ -241,6 +255,9 @@
 
             // Initialize visitor/guest view counter
             initVisitorCounter();
+
+            // Initialize TV receiver pairing connection
+            initTVPairing();
         }
 
         // Initialize visitor/guest view counter
@@ -3004,6 +3021,608 @@
 
         // Make toggleMoreControlsMenu available globally
         window.toggleMoreControlsMenu = toggleMoreControlsMenu;
+
+        // =========================================================================
+        // REMOTE CONTROL PAIRING MODULE (MQTT-based)
+        // =========================================================================
+
+        const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+        const MQTT_TOPIC_PREFIX = 'livestreamviewer/pair/';
+
+        function getMqttTopic(code) {
+            let hash = 0;
+            const str = "ls_salt_" + code;
+            for (let i = 0; i < str.length; i++) {
+                hash = (hash << 5) - hash + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return MQTT_TOPIC_PREFIX + Math.abs(hash).toString(16);
+        }
+
+        // --- TV RECEIVER SIDE ---
+        let tvMqttClient = null;
+        let tvPairingCode = '';
+
+        function initTVPairing() {
+            tvPairingCode = getCookie('pairing_code');
+            if (!tvPairingCode || tvPairingCode.length !== 6) {
+                tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
+                setCookie('pairing_code', tvPairingCode, 365);
+            }
+
+            const topic = getMqttTopic(tvPairingCode);
+            console.log(`[TV Pairing] Connecting to MQTT broker. Code: ${tvPairingCode}, Topic: ${topic}`);
+
+            try {
+                tvMqttClient = mqtt.connect(MQTT_BROKER, {
+                    clientId: 'livestreamviewer_tv_' + Math.random().toString(16).substring(2, 8),
+                    keepalive: 60,
+                    reconnectPeriod: 5000
+                });
+
+                tvMqttClient.on('connect', () => {
+                    console.log('[TV Pairing] Connected to MQTT broker');
+                    tvMqttClient.subscribe(topic, (err) => {
+                        if (!err) {
+                            console.log(`[TV Pairing] Subscribed to topic: ${topic}`);
+                            updateTVPairingStatus(true);
+                            sendMqttSync(); // Sync immediately in case remote was already listening
+                        } else {
+                            console.error('[TV Pairing] Subscription error:', err);
+                        }
+                    });
+                });
+
+                tvMqttClient.on('message', (receivedTopic, message) => {
+                    if (receivedTopic === topic) {
+                        try {
+                            const data = JSON.parse(message.toString());
+                            if (data.from === 'remote') {
+                                handleRemoteCommand(data);
+                            }
+                        } catch (e) {
+                            console.error('[TV Pairing] Error parsing message:', e);
+                        }
+                    }
+                });
+
+                tvMqttClient.on('close', () => {
+                    console.log('[TV Pairing] Connection closed');
+                    updateTVPairingStatus(false);
+                });
+
+                tvMqttClient.on('error', (err) => {
+                    console.error('[TV Pairing] MQTT Error:', err);
+                    updateTVPairingStatus(false);
+                });
+            } catch (e) {
+                console.error('[TV Pairing] MQTT init failed:', e);
+            }
+        }
+
+        function updateTVPairingStatus(isConnected) {
+            const statusDot = document.getElementById('pairing-status-dot');
+            const statusText = document.getElementById('pairing-status-text');
+            if (statusDot && statusText) {
+                if (isConnected) {
+                    statusDot.className = 'status-dot-mini online';
+                    statusText.innerText = 'Online';
+                } else {
+                    statusDot.className = 'status-dot-mini checking';
+                    statusText.innerText = 'Disconnected';
+                }
+            }
+        }
+
+        function sendMqttSync() {
+            if (tvMqttClient && tvMqttClient.connected) {
+                const topic = getMqttTopic(tvPairingCode);
+                const activeStatus = {};
+
+                Object.keys(activePlayers).forEach(id => {
+                    const pObj = activePlayers[id];
+                    if (pObj) {
+                        let isPlaying = true;
+                        if (pObj.type === 'hls' && pObj.instance) {
+                            isPlaying = !pObj.instance.paused();
+                        } else if (pObj.type === 'youtube' && pObj.instance) {
+                            isPlaying = pObj.instance.getPlayerState && pObj.instance.getPlayerState() === 1;
+                        }
+                        activeStatus[id] = {
+                            isPlaying: isPlaying,
+                            isMuted: pObj.muted || false,
+                            volume: pObj.volume || 100
+                        };
+                    }
+                });
+
+                const payload = {
+                    from: 'tv',
+                    type: 'sync',
+                    layout: appState.layout,
+                    rotatorMode: appState.rotatorMode,
+                    rotatorInterval: appState.rotatorInterval,
+                    cycleActive: !!cycleInterval,
+                    streams: appState.streams.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        url: s.url,
+                        type: s.type,
+                        category: s.category,
+                        active: s.active,
+                        isDefault: s.isDefault
+                    })),
+                    presets: getPresets(),
+                    activePlayersStatus: activeStatus
+                };
+
+                tvMqttClient.publish(topic, JSON.stringify(payload));
+                console.log('[TV Pairing] Sent sync state');
+            }
+        }
+
+        function handleRemoteCommand(msg) {
+            console.log('[TV Pairing] Received remote command:', msg);
+            switch (msg.action) {
+                case 'ping':
+                    sendMqttSync();
+                    break;
+                case 'setLayout':
+                    if (msg.data && msg.data.layout) {
+                        handleLayoutChange(msg.data.layout);
+                    }
+                    break;
+                case 'toggleStream':
+                    if (msg.data && msg.data.streamId) {
+                        toggleStreamActive(msg.data.streamId, msg.data.checked);
+                    }
+                    break;
+                case 'loadPreset':
+                    if (msg.data && msg.data.name) {
+                        loadPreset(msg.data.name);
+                    }
+                    break;
+                case 'togglePlay':
+                    if (msg.data && msg.data.streamId) {
+                        togglePlay(msg.data.streamId);
+                    }
+                    break;
+                case 'toggleMute':
+                    if (msg.data && msg.data.streamId) {
+                        toggleMute(msg.data.streamId);
+                    }
+                    break;
+                case 'fullscreenStream':
+                    if (msg.data && msg.data.streamId) {
+                        fullscreenStream(msg.data.streamId);
+                    }
+                    break;
+                case 'toggleCycle':
+                    toggleCycle();
+                    break;
+                case 'toggleFS':
+                    toggleFS();
+                    break;
+                case 'refreshAll':
+                    location.reload();
+                    break;
+                case 'muteAll':
+                    Object.keys(activePlayers).forEach(streamId => {
+                        const pObj = activePlayers[streamId];
+                        if (pObj && !pObj.muted) {
+                            toggleMute(streamId);
+                        }
+                    });
+                    break;
+                case 'unmuteAll':
+                    Object.keys(activePlayers).forEach(streamId => {
+                        const pObj = activePlayers[streamId];
+                        if (pObj && pObj.muted) {
+                            toggleMute(streamId);
+                        }
+                    });
+                    break;
+                case 'addStream':
+                    if (msg.data && msg.data.stream) {
+                        const s = msg.data.stream;
+                        const newStream = {
+                            id: 'custom-' + Date.now(),
+                            name: s.name,
+                            url: s.url,
+                            type: s.type,
+                            category: s.category || 'General',
+                            active: true,
+                            isDefault: false
+                        };
+                        appState.streams.push(newStream);
+                        persistState();
+                        populateSidebarCategories();
+                        populateSettings();
+                        renderActiveStreams();
+                        renderSidebarStreams();
+                    }
+                    break;
+            }
+            sendMqttSync();
+        }
+
+        // --- GLOBAL PAIRING MODAL INTERACTION ---
+        function openPairingModal() {
+            const modal = document.getElementById('pairing-modal');
+            if (!modal) return;
+            modal.classList.add('open');
+
+            const pairingUrl = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
+            
+            const urlText = document.getElementById('pairing-url-text');
+            if (urlText) urlText.innerText = pairingUrl;
+
+            const codeDisplay = document.getElementById('pairing-code-display');
+            if (codeDisplay) codeDisplay.innerText = tvPairingCode;
+
+            // Render QR Code using QRious
+            try {
+                const qrCanvas = document.getElementById('pairing-qrcode-canvas');
+                if (qrCanvas) {
+                    new QRious({
+                        element: qrCanvas,
+                        value: pairingUrl,
+                        size: 200,
+                        background: 'white',
+                        foreground: '#030712',
+                        level: 'H'
+                    });
+                }
+            } catch (e) {
+                console.error('Error generating QR code:', e);
+            }
+        }
+
+        function closePairingModal() {
+            const modal = document.getElementById('pairing-modal');
+            if (modal) modal.classList.remove('open');
+        }
+
+        function closePairingOnOverlay(event) {
+            if (event.target === document.getElementById('pairing-modal')) {
+                closePairingModal();
+            }
+        }
+
+        function copyPairingURL() {
+            const pairingUrl = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
+            navigator.clipboard.writeText(pairingUrl).then(() => {
+                alert('Pairing link copied to clipboard!');
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+            });
+        }
+
+        function regeneratePairingCode() {
+            if (confirm('Regenerating pairing code will disconnect any currently paired remote controls. Continue?')) {
+                tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
+                setCookie('pairing_code', tvPairingCode, 365);
+
+                if (tvMqttClient) {
+                    try {
+                        tvMqttClient.end(true);
+                    } catch (e) {}
+                }
+
+                initTVPairing();
+                openPairingModal();
+            }
+        }
+
+        // --- MOBILE REMOTE CONTROLLER SIDE ---
+        let remoteMqttClient = null;
+        let remotePairCode = '';
+        let remoteState = null;
+
+        function initMobileRemote(code) {
+            document.body.classList.add('remote-mode');
+
+            const container = document.getElementById('mobile-remote-container');
+            if (container) container.classList.remove('hidden');
+
+            const entryCard = document.getElementById('remote-pairing-entry-card');
+            const disOverlay = document.getElementById('remote-disconnected-overlay');
+            const ctrlDeck = document.getElementById('remote-control-deck');
+
+            if (!code || code.trim() === '') {
+                // State A: Show manual code entry screen, hide TV remote deck
+                if (entryCard) entryCard.classList.remove('hidden');
+                if (disOverlay) disOverlay.classList.add('hidden');
+                if (ctrlDeck) ctrlDeck.classList.add('hidden');
+                
+                const badge = document.getElementById('remote-code-badge');
+                if (badge) badge.innerText = 'UNPAIRED';
+                return;
+            }
+
+            // State B: Show connecting/disconnected card, wait for TV sync
+            remotePairCode = code;
+            if (entryCard) entryCard.classList.add('hidden');
+            if (disOverlay) disOverlay.classList.remove('hidden');
+            if (ctrlDeck) ctrlDeck.classList.add('hidden');
+
+            const badge = document.getElementById('remote-code-badge');
+            if (badge) badge.innerText = 'CODE: ' + code;
+
+            const topic = getMqttTopic(code);
+            console.log(`[Mobile Remote] Connecting. Code: ${code}, Topic: ${topic}`);
+
+            try {
+                remoteMqttClient = mqtt.connect(MQTT_BROKER, {
+                    clientId: 'livestreamviewer_remote_' + Math.random().toString(16).substring(2, 8),
+                    keepalive: 60,
+                    reconnectPeriod: 5000
+                });
+
+                remoteMqttClient.on('connect', () => {
+                    console.log('[Mobile Remote] Connected to MQTT broker');
+                    remoteMqttClient.subscribe(topic, (err) => {
+                        if (!err) {
+                            console.log(`[Mobile Remote] Subscribed to topic: ${topic}`);
+                            updateRemoteStatus(true);
+                            sendRemoteCommand('ping');
+                        }
+                    });
+                });
+
+                remoteMqttClient.on('message', (receivedTopic, message) => {
+                    if (receivedTopic === topic) {
+                        try {
+                            const data = JSON.parse(message.toString());
+                            if (data.from === 'tv' && data.type === 'sync') {
+                                handleRemoteSync(data);
+                            }
+                        } catch (e) {
+                            console.error('[Mobile Remote] Error parsing message:', e);
+                        }
+                    }
+                });
+
+                remoteMqttClient.on('close', () => {
+                    console.log('[Mobile Remote] Connection closed');
+                    updateRemoteStatus(false);
+                });
+
+                remoteMqttClient.on('error', (err) => {
+                    console.error('[Mobile Remote] MQTT Error:', err);
+                    updateRemoteStatus(false);
+                });
+            } catch (e) {
+                console.error('[Mobile Remote] MQTT init failed:', e);
+            }
+        }
+
+        function updateRemoteStatus(isConnected) {
+            const connDot = document.getElementById('remote-conn-dot');
+            if (connDot) {
+                if (isConnected) {
+                    connDot.className = 'status-dot-mini online';
+                    connDot.style.backgroundColor = '#10b981';
+                    connDot.style.boxShadow = '0 0 6px #10b981';
+                } else {
+                    connDot.className = 'status-dot-mini checking';
+                    connDot.style.backgroundColor = 'var(--text-muted)';
+                    connDot.style.boxShadow = '0 0 6px var(--text-muted)';
+                }
+            }
+        }
+
+        function handleRemoteSync(data) {
+            remoteState = data;
+
+            const disOverlay = document.getElementById('remote-disconnected-overlay');
+            if (disOverlay) disOverlay.classList.add('hidden');
+
+            const ctrlDeck = document.getElementById('remote-control-deck');
+            if (ctrlDeck) ctrlDeck.classList.remove('hidden');
+
+            updateRemoteStatus(true);
+
+            // Update layouts active state
+            document.querySelectorAll('.remote-grid-2col .remote-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeLayoutBtn = document.getElementById('remote-layout-' + data.layout);
+            if (activeLayoutBtn) activeLayoutBtn.classList.add('active');
+
+            // Update auto-cycle rotator button text
+            const cycleBtn = document.getElementById('remote-btn-cycle');
+            if (cycleBtn) {
+                if (data.cycleActive) {
+                    cycleBtn.innerText = 'Auto-Cycle Rotator: ON';
+                    cycleBtn.classList.add('active');
+                } else {
+                    cycleBtn.innerText = 'Auto-Cycle Rotator: OFF';
+                    cycleBtn.classList.remove('active');
+                }
+            }
+
+            renderRemoteActiveStreamsList();
+            renderRemoteLibraryStreamsList();
+            renderRemotePresetsList();
+        }
+
+        function renderRemoteActiveStreamsList() {
+            const listEl = document.getElementById('remote-active-streams-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const activeStreams = (remoteState.streams || []).filter(s => s.active);
+            if (activeStreams.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px dashed var(--border-color);">No active streams on TV screen.</div>';
+                return;
+            }
+
+            activeStreams.forEach(stream => {
+                const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
+
+                const item = document.createElement('div');
+                item.className = 'remote-list-item';
+
+                const titleHtml = `<div class="remote-item-info">
+                    <div class="remote-item-title">${stream.name}</div>
+                    <div class="remote-item-desc">${stream.category} • ${stream.type.toUpperCase()}</div>
+                </div>`;
+
+                const actionsHtml = `<div class="remote-item-actions">
+                    <button class="remote-action-btn ${playerStatus.isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })" title="Play / Pause">
+                        ${playerStatus.isPlaying ? '⏸️' : '▶️'}
+                    </button>
+                    <button class="remote-action-btn ${playerStatus.isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${stream.id}' })" title="Mute / Unmute">
+                        🔊
+                    </button>
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('fullscreenStream', { streamId: '${stream.id}' })" title="Fullscreen">
+                        🖥️
+                    </button>
+                </div>`;
+
+                item.innerHTML = titleHtml + actionsHtml;
+                listEl.appendChild(item);
+            });
+        }
+
+        function renderRemoteLibraryStreamsList() {
+            const listEl = document.getElementById('remote-library-streams-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const streams = remoteState.streams || [];
+            if (streams.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 10px; text-align: center;">Library is empty.</div>';
+                return;
+            }
+
+            streams.forEach(stream => {
+                const item = document.createElement('div');
+                item.className = 'remote-list-item';
+
+                const titleHtml = `<div class="remote-item-info">
+                    <div class="remote-item-title">${stream.name}</div>
+                    <div class="remote-item-desc">${stream.category} • ${stream.type.toUpperCase()}</div>
+                </div>`;
+
+                const switchHtml = `<div class="remote-item-actions">
+                    <label class="remote-switch">
+                        <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: this.checked })">
+                        <span class="remote-slider"></span>
+                    </label>
+                </div>`;
+
+                item.innerHTML = titleHtml + switchHtml;
+                listEl.appendChild(item);
+            });
+        }
+
+        function renderRemotePresetsList() {
+            const listEl = document.getElementById('remote-presets-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const presets = remoteState.presets || [];
+            if (presets.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px dashed var(--border-color);">No saved presets found on TV.</div>';
+                return;
+            }
+
+            presets.forEach(preset => {
+                const item = document.createElement('div');
+                item.className = 'remote-list-item';
+
+                const titleHtml = `<div class="remote-item-info">
+                    <div class="remote-item-title">${preset.name}</div>
+                    <div class="remote-item-desc">Layout: ${preset.layout} • ${preset.streams.length} channels</div>
+                </div>`;
+
+                const actionHtml = `<div class="remote-item-actions">
+                    <button class="btn btn-sm btn-primary" onclick="sendRemoteCommand('loadPreset', { name: '${preset.name}' })" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
+                </div>`;
+
+                item.innerHTML = titleHtml + actionHtml;
+                listEl.appendChild(item);
+            });
+        }
+
+        function switchRemoteTab(tabId) {
+            document.querySelectorAll('.remote-tabs .remote-tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeTabBtn = document.getElementById('btn-' + tabId);
+            if (activeTabBtn) activeTabBtn.classList.add('active');
+
+            document.querySelectorAll('.remote-content .remote-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) targetContent.classList.add('active');
+        }
+
+        function sendRemoteCommand(action, data = {}) {
+            if (remoteMqttClient && remoteMqttClient.connected) {
+                const topic = getMqttTopic(remotePairCode);
+                const payload = {
+                    from: 'remote',
+                    action: action,
+                    data: data
+                };
+                remoteMqttClient.publish(topic, JSON.stringify(payload));
+                console.log('[Mobile Remote] Sent command:', action);
+            }
+        }
+
+        function handleRemoteAddStream(event) {
+            event.preventDefault();
+            const nameEl = document.getElementById('remote-add-name');
+            const urlEl = document.getElementById('remote-add-url');
+            const typeEl = document.getElementById('remote-add-type');
+
+            const name = nameEl.value.trim();
+            const url = urlEl.value.trim();
+            const type = typeEl.value;
+
+            if (!name || !url) return;
+
+            sendRemoteCommand('addStream', {
+                stream: {
+                    name: name,
+                    url: url,
+                    type: type,
+                    category: 'Remote Custom'
+                }
+            });
+
+            nameEl.value = '';
+            urlEl.value = '';
+
+            alert(`Command sent: Add stream "${name}"`);
+        }
+
+        function connectWithInputCode() {
+            const inputEl = document.getElementById('remote-pairing-input');
+            if (!inputEl) return;
+            const code = inputEl.value.trim();
+            if (code.length !== 6 || isNaN(code)) {
+                alert('Please enter a valid 6-digit pairing code.');
+                return;
+            }
+            // Redirect to mobile view with pair code parameter
+            window.location.href = window.location.pathname + "?view=mobile&pair=" + code;
+        }
+
+        window.openPairingModal = openPairingModal;
+        window.closePairingModal = closePairingModal;
+        window.closePairingOnOverlay = closePairingOnOverlay;
+        window.copyPairingURL = copyPairingURL;
+        window.regeneratePairingCode = regeneratePairingCode;
+        window.switchRemoteTab = switchRemoteTab;
+        window.sendRemoteCommand = sendRemoteCommand;
+        window.handleRemoteAddStream = handleRemoteAddStream;
+        window.sendMqttSync = sendMqttSync;
+        window.connectWithInputCode = connectWithInputCode;
 
         // Run application
         initApp();
