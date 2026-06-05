@@ -3,7 +3,7 @@ const defaultChannels = [
     { name: "KHOU 11", url: "https://video.tegnaone.com/khou/live/v1/master/f9c1bf9ffd6ac86b6173a7c169ff6e3f4efbd693/KHOU-Production/live/index.m3u8", type: "hls", category: "News", active: true },
     { name: "ABC13 Live Traffic", url: "https://d1vl9tp8xqmy48.cloudfront.net/out/v1/31268545ebea4ba99158e1348f1f4a2d/ADHOC-KTRK-02-cmaf-manifest/ADHOC-KTRK-02-index_2.m3u8", type: "hls", category: "News", active: true },
     { name: "KPRC 2", url: "https://pubads.g.doubleclick.net/ssai/event/jHV2RfV4QQuU2swXQUVHsA/master.m3u8", type: "hls", category: "News", active: true },
-    { name: "Bloomberg Business News Live", url: "https://www.youtube.com/watch?v=iEpJwprxDdk", type: "YouTube", category: "News", active: true },
+    { name: "Bloomberg Business News Live", url: "https://www.youtube.com/watch?v=iEpJwprxDdk", type: "youtube", category: "News", active: true },
     { name: "Skycam North", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Weather Cams", active: true },
     { name: "Skycam South", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.yykibrj.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Weather Cams", active: true },
     { name: "Seawall (Beach View)", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Beach Cams", active: true },
