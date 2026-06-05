@@ -45,6 +45,37 @@
         // Dynamic API script loading triggers
         let youtubeAPIReady = false;
 
+        // XSS Protection Utility Helpers
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            if (typeof str !== 'string') str = String(str);
+            return str.replace(/[&<>"']/g, function(m) {
+                switch (m) {
+                    case '&': return '&amp;';
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '"': return '&quot;';
+                    case "'": return '&#039;';
+                    default: return m;
+                }
+            });
+        }
+
+        function sanitizeUrl(url) {
+            if (typeof url !== 'string') return '';
+            const trimmed = url.trim();
+            if (/^(javascript|data):/i.test(trimmed)) {
+                return 'about:blank';
+            }
+            return trimmed;
+        }
+
+        function escapeJsString(str) {
+            if (str === null || str === undefined) return '';
+            if (typeof str !== 'string') str = String(str);
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
         // Cookie Helpers
         function setCookie(name, value, days) {
             let expires = "";
@@ -892,14 +923,20 @@
                 const status = streamUptimeStatuses[stream.id] || 'checking';
                 const statusTitle = status === 'checking' ? 'Checking status...' : (status === 'online' ? 'Stream online' : 'Stream offline / inaccessible');
 
+                const escapedName = escapeHtml(stream.name);
+                const escapedType = escapeHtml(stream.type);
+                const escapedUrl = escapeHtml(stream.url);
+                const escapedDisplayUrl = escapeHtml(displayUrl);
+                const escapedStatusTitle = escapeHtml(statusTitle);
+
                 item.innerHTML = `
                     <div class="sidebar-item-header">
-                        <span class="status-dot-mini ${status}" id="sidebar-status-dot-${stream.id}" title="${statusTitle}"></span>
-                        <span class="sidebar-item-name" title="${stream.name}">${stream.name}</span>
-                        <span class="sidebar-item-badge ${badgeClass}">${stream.type}</span>
+                        <span class="status-dot-mini ${status}" id="sidebar-status-dot-${stream.id}" title="${escapedStatusTitle}"></span>
+                        <span class="sidebar-item-name" title="${escapedName}">${escapedName}</span>
+                        <span class="sidebar-item-badge ${badgeClass}">${escapedType}</span>
                     </div>
                     <div class="sidebar-item-footer">
-                        <span class="sidebar-item-desc" title="${stream.url}">${displayUrl}</span>
+                        <span class="sidebar-item-desc" title="${escapedUrl}">${escapedDisplayUrl}</span>
                         <div class="sidebar-item-controls">
                             <label class="sidebar-switch" title="Toggle active status" onclick="event.stopPropagation()">
                                 <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="toggleStreamActive('${stream.id}', this.checked)">
@@ -1103,14 +1140,17 @@
             const showVolumeInTab = stream.type !== 'weather' && stream.type !== 'iframe' && stream.type !== 'notes';
             const volumeTabHtml = showVolumeInTab ? `<span class="sst-volume" id="sst-volume-${stream.id}">🔇</span>` : '';
 
+            const escapedStreamName = escapeHtml(stream.name);
+            const escapedStreamType = escapeHtml(stream.type);
+
             card.innerHTML = `
                 <div class="stream-status-tab" id="status-tab-${stream.id}">
-                    <span class="sst-name">${stream.name}</span>
+                    <span class="sst-name">${escapedStreamName}</span>
                     ${volumeTabHtml}
                 </div>
                 <div class="stream-header">
-                    <span class="stream-name">${stream.name}</span>
-                    <span class="stream-type-badge">${stream.type}</span>
+                    <span class="stream-name">${escapedStreamName}</span>
+                    <span class="stream-type-badge">${escapedStreamType}</span>
                 </div>
                 <div class="stream-player-container" id="player-container-${stream.id}">
                     <!-- Embedded Stream Content -->
@@ -2084,8 +2124,9 @@
             const stream = appState.streams.find(s => s.id === streamId);
             if (!stream) return;
             
-            const name = stream.name;
-            const url = stream.url;
+            const name = escapeHtml(stream.name);
+            const url = sanitizeUrl(stream.url);
+            const escapedUrl = escapeHtml(url);
             const type = stream.type;
             
             const w = 800;
@@ -2103,7 +2144,7 @@
             if (type === 'hls') {
                 playerHtml = `
                     <video id="pop-player" class="video-js vjs-default-skin vjs-big-play-centered" controls autoplay playsinline style="width:100%; height:100vh;">
-                        <source src="${url}" type="application/x-mpegURL">
+                        <source src="${escapedUrl}" type="application/x-mpegURL">
                     </video>
                     <script src="https://vjs.zencdn.net/8.10.0/video.js"></script>
                     <script>
@@ -2123,16 +2164,17 @@
                         videoId = match[2];
                     }
                 }
+                const escapedVideoId = escapeHtml(videoId);
                 playerHtml = `
-                    <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
+                    <iframe src="https://www.youtube.com/embed/${escapedVideoId}?autoplay=1&mute=0&controls=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
                 `;
             } else if (type === 'twitch') {
                 playerHtml = `
-                    <iframe src="https://player.twitch.tv/?channel=${url}&parent=${window.location.hostname}&autoplay=true" frameborder="0" allowfullscreen="true" scrolling="no" style="width:100%; height:100vh; border:none;"></iframe>
+                    <iframe src="https://player.twitch.tv/?channel=${escapedUrl}&parent=${window.location.hostname}&autoplay=true" frameborder="0" allowfullscreen="true" scrolling="no" style="width:100%; height:100vh; border:none;"></iframe>
                 `;
             } else {
                 playerHtml = `
-                    <iframe src="${url}" frameborder="0" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
+                    <iframe src="${escapedUrl}" frameborder="0" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
                 `;
             }
             
@@ -2216,7 +2258,7 @@
                     widget.innerHTML = `
                         <div class="wc-header">
                             <div>
-                                <div class="wc-location">${appState.location}</div>
+                                <div class="wc-location">${escapeHtml(appState.location)}</div>
                             </div>
                             <div style="text-align: right;">
                                 <div class="wc-current-temp">${temp}°F</div>
@@ -2623,7 +2665,7 @@
                         id="notes-textarea-${stream.id}" 
                         placeholder="Console Log & Notes...&#10;Record stream events, time observations, or custom logs here."
                         oninput="saveNotesContent('${stream.id}', this.value)"
-                    >${savedText}</textarea>
+                    >${escapeHtml(savedText)}</textarea>
                 </div>
             `;
         }
@@ -2750,7 +2792,11 @@
                 if (isAlreadyAdded) {
                     actionContainer.innerHTML = `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`;
                 } else {
-                    actionContainer.innerHTML = `<button class="btn btn-primary" onclick="addDirectoryStreamFromPreview('${item.name.replace(/'/g, "\\'")}', '${item.url}', '${item.type}', '${item.category.replace(/'/g, "\\'")}')">Add to Dashboard</button>`;
+                    const jsEscName = escapeHtml(escapeJsString(item.name));
+                    const jsEscUrl = escapeHtml(escapeJsString(item.url));
+                    const jsEscType = escapeHtml(escapeJsString(item.type));
+                    const jsEscCat = escapeHtml(escapeJsString(item.category));
+                    actionContainer.innerHTML = `<button class="btn btn-primary" onclick="addDirectoryStreamFromPreview('${jsEscName}', '${jsEscUrl}', '${jsEscType}', '${jsEscCat}')">Add to Dashboard</button>`;
                 }
             }
 
@@ -2961,19 +3007,30 @@
                 };
                 
                 const bgGradient = getCategoryGradient(item.category);
+                const escCat = escapeHtml(item.category);
+                const escType = escapeHtml(item.type);
+                const escName = escapeHtml(item.name);
+                const escDesc = escapeHtml(item.desc);
+                const escEmoji = escapeHtml(item.emoji);
+
+                const jsEscName = escapeHtml(escapeJsString(item.name));
+                const jsEscUrl = escapeHtml(escapeJsString(item.url));
+                const jsEscType = escapeHtml(escapeJsString(item.type));
+                const jsEscCat = escapeHtml(escapeJsString(item.category));
+
                 const buttonHtml = isAlreadyAdded 
                     ? `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`
-                    : `<button class="btn btn-primary" onclick="addDirectoryStream('${item.name.replace(/'/g, "\\'")}', '${item.url}', '${item.type}', '${item.category.replace(/'/g, "\\'")}')">Add Stream</button>`;
+                    : `<button class="btn btn-primary" onclick="addDirectoryStream('${jsEscName}', '${jsEscUrl}', '${jsEscType}', '${jsEscCat}')">Add Stream</button>`;
                 
                 card.innerHTML = `
                     <div class="browser-card-thumb" style="background: ${bgGradient}">
-                        <div class="browser-card-category">${item.category}</div>
-                        <div class="browser-card-type ${item.type}">${item.type}</div>
-                        <span style="font-size: 3rem; z-index: 2; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">${item.emoji}</span>
+                        <div class="browser-card-category">${escCat}</div>
+                        <div class="browser-card-type ${item.type}">${escType}</div>
+                        <span style="font-size: 3rem; z-index: 2; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">${escEmoji}</span>
                     </div>
                     <div class="browser-card-info">
-                        <div class="browser-card-title">${item.name}</div>
-                        <div class="browser-card-desc">${item.desc}</div>
+                        <div class="browser-card-title">${escName}</div>
+                        <div class="browser-card-desc">${escDesc}</div>
                     </div>
                     <div class="browser-card-action">
                         ${buttonHtml}
@@ -3648,7 +3705,7 @@
             const displayName = currentDisplay ? currentDisplay.name : (remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED');
             
             // Render a beautiful pill that prompts the switcher popup when clicked
-            container.innerHTML = `📺 <span style="margin-left: 2px;">${displayName}</span> <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
+            container.innerHTML = `📺 <span style="margin-left: 2px;">${escapeHtml(displayName)}</span> <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
         }
 
         function openRemoteSwitcherPopup() {
@@ -3672,11 +3729,13 @@
                         const item = document.createElement('div');
                         item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
                         item.style.cursor = 'pointer';
-                        item.setAttribute('onclick', `selectDisplayFromSwitcher('${d.code}')`);
+                        
+                        const jsEscCode = escapeHtml(escapeJsString(d.code));
+                        item.setAttribute('onclick', `selectDisplayFromSwitcher('${jsEscCode}')`);
                         
                         const titleHtml = `<div class="remote-item-info">
-                            <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${d.name}</div>
-                            <div class="remote-item-desc">Code: ${d.code}</div>
+                            <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escapeHtml(d.name)}</div>
+                            <div class="remote-item-desc">Code: ${escapeHtml(d.code)}</div>
                         </div>`;
                         
                         const indicatorHtml = `<div class="remote-item-actions">
@@ -3788,8 +3847,10 @@
             masterSelect.innerHTML = '<option value="">-- Select Master TV --</option>';
 
             pairedDisplays.forEach(d => {
-                slaveSelect.innerHTML += `<option value="${d.code}">${d.name} (${d.code})</option>`;
-                masterSelect.innerHTML += `<option value="${d.code}">${d.name} (${d.code})</option>`;
+                const escName = escapeHtml(d.name);
+                const escCode = escapeHtml(d.code);
+                slaveSelect.innerHTML += `<option value="${escCode}">${escName} (${escCode})</option>`;
+                masterSelect.innerHTML += `<option value="${escCode}">${escName} (${escCode})</option>`;
             });
 
             masterSelect.innerHTML += '<option value="custom">-- Enter custom code... --</option>';
@@ -3889,14 +3950,18 @@
                 const isCurrent = d.code === remotePairCode;
                 item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
                 
-                const titleHtml = `<div class="remote-item-info" onclick="switchRemotePairing('${d.code}')" style="cursor: pointer; flex-grow: 1;">
-                    <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${d.name} ${isCurrent ? '🟢' : ''}</div>
-                    <div class="remote-item-desc">Code: ${d.code} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
+                const escCode = escapeHtml(d.code);
+                const escName = escapeHtml(d.name);
+                const jsEscCode = escapeHtml(escapeJsString(d.code));
+                
+                const titleHtml = `<div class="remote-item-info" onclick="switchRemotePairing('${jsEscCode}')" style="cursor: pointer; flex-grow: 1;">
+                    <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escName} ${isCurrent ? '🟢' : ''}</div>
+                    <div class="remote-item-desc">Code: ${escCode} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
                 </div>`;
 
                 const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-sm btn-secondary" onclick="renamePairing('${d.code}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
-                    <button class="btn btn-sm btn-danger" onclick="removePairing('${d.code}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
+                    <button class="btn btn-sm btn-secondary" onclick="renamePairing('${jsEscCode}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
+                    <button class="btn btn-sm btn-danger" onclick="removePairing('${jsEscCode}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
                 </div>`;
 
                 item.innerHTML = titleHtml + actionsHtml;
@@ -4076,32 +4141,37 @@
                 const item = document.createElement('div');
                 item.className = 'remote-list-item';
 
+                const escName = escapeHtml(stream.name);
+                const escCat = escapeHtml(stream.category);
+                const escType = escapeHtml(stream.type.toUpperCase());
+                const jsEscId = escapeHtml(escapeJsString(stream.id));
+
                 const titleHtml = `<div class="remote-item-info">
-                    <div class="remote-item-title">${stream.name}</div>
-                    <div class="remote-item-desc">${stream.category} • ${stream.type.toUpperCase()}</div>
+                    <div class="remote-item-title">${escName}</div>
+                    <div class="remote-item-desc">${escCat} • ${escType}</div>
                 </div>`;
 
                 const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 6px;">
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'up' })" title="Move Up" style="font-size: 0.75rem;">
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${jsEscId}', direction: 'up' })" title="Move Up" style="font-size: 0.75rem;">
                         ▲
                     </button>
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'down' })" title="Move Down" style="font-size: 0.75rem;">
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${jsEscId}', direction: 'down' })" title="Move Down" style="font-size: 0.75rem;">
                         ▼
                     </button>
-                    <button class="remote-action-btn ${isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })" title="Play / Pause">
+                    <button class="remote-action-btn ${isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${jsEscId}' })" title="Play / Pause">
                         ${isPlaying ? '⏸️' : '▶️'}
                     </button>
-                    <button class="remote-action-btn ${isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${stream.id}' })" title="Mute / Unmute">
+                    <button class="remote-action-btn ${isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${jsEscId}' })" title="Mute / Unmute">
                         ${isMuted ? '🔇' : '🔊'}
                     </button>
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('fullscreenStream', { streamId: '${stream.id}' })" title="Fullscreen">
+                    <button class="remote-action-btn" onclick="sendRemoteCommand('fullscreenStream', { streamId: '${jsEscId}' })" title="Fullscreen">
                         🖥️
                     </button>
                 </div>`;
 
                 const volumeControlHtml = `<div style="display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.03);">
                     <span style="font-size: 0.75rem; color: var(--text-muted); width: 30px;">Vol</span>
-                    <input type="range" class="remote-volume-slider" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" onchange="sendRemoteCommand('setVolume', { streamId: '${stream.id}', volume: this.value })" oninput="this.nextElementSibling.innerText = this.value + '%'" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
+                    <input type="range" class="remote-volume-slider" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" onchange="sendRemoteCommand('setVolume', { streamId: '${jsEscId}', volume: this.value })" oninput="this.nextElementSibling.innerText = this.value + '%'" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
                     <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 32px; text-align: right;">${isMuted ? 'Muted' : (playerStatus.volume !== undefined ? playerStatus.volume + '%' : '100%')}</span>
                 </div>`;
 
@@ -4132,14 +4202,19 @@
                 const item = document.createElement('div');
                 item.className = 'remote-list-item';
 
+                const escName = escapeHtml(stream.name);
+                const escCat = escapeHtml(stream.category);
+                const escType = escapeHtml(stream.type.toUpperCase());
+                const jsEscId = escapeHtml(escapeJsString(stream.id));
+
                 const titleHtml = `<div class="remote-item-info">
-                    <div class="remote-item-title">${stream.name}</div>
-                    <div class="remote-item-desc">${stream.category} • ${stream.type.toUpperCase()}</div>
+                    <div class="remote-item-title">${escName}</div>
+                    <div class="remote-item-desc">${escCat} • ${escType}</div>
                 </div>`;
 
                 const switchHtml = `<div class="remote-item-actions">
                     <label class="remote-switch">
-                        <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: this.checked })">
+                        <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="sendRemoteCommand('toggleStream', { streamId: '${jsEscId}', checked: this.checked })">
                         <span class="remote-slider"></span>
                     </label>
                 </div>`;
@@ -4164,14 +4239,18 @@
                 const item = document.createElement('div');
                 item.className = 'remote-list-item';
 
+                const escName = escapeHtml(preset.name);
+                const escLayout = escapeHtml(preset.layout);
+                const jsEscName = escapeHtml(escapeJsString(preset.name));
+
                 const titleHtml = `<div class="remote-item-info">
-                    <div class="remote-item-title">${preset.name}</div>
-                    <div class="remote-item-desc">Layout: ${preset.layout} • ${(preset.streams || preset.activeStreamIds || []).length} channels</div>
+                    <div class="remote-item-title">${escName}</div>
+                    <div class="remote-item-desc">Layout: ${escLayout} • ${(preset.streams || preset.activeStreamIds || []).length} channels</div>
                 </div>`;
 
                 const actionHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px; align-items: center;">
-                    <button class="btn btn-sm btn-primary" onclick="sendRemoteCommand('loadPreset', { name: '${preset.name}' })" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
-                    <button class="btn btn-sm btn-danger" onclick="handleRemoteDeletePreset('${preset.name.replace(/'/g, "\\'")}')" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
+                    <button class="btn btn-sm btn-primary" onclick="sendRemoteCommand('loadPreset', { name: '${jsEscName}' })" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
+                    <button class="btn btn-sm btn-danger" onclick="handleRemoteDeletePreset('${jsEscName}')" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
                 </div>`;
 
                 item.innerHTML = titleHtml + actionHtml;
@@ -4369,16 +4448,20 @@
                 if (stream) {
                     slot.className = slotClass + ' active';
                     slot.draggable = true;
-                    slot.setAttribute('ondragstart', `handleRemoteDragStart(event, '${stream.id}')`);
+                    
+                    const jsEscId = escapeHtml(escapeJsString(stream.id));
+                    const escName = escapeHtml(stream.name);
+
+                    slot.setAttribute('ondragstart', `handleRemoteDragStart(event, '${jsEscId}')`);
                     slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
                     slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
-                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, '${stream.id}')`);
-                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, '${stream.id}')`);
+                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, '${jsEscId}')`);
+                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, '${jsEscId}')`);
                     
                     slot.innerHTML = `
                         <div class="remote-slot-index">${labelTextFunc(i)}</div>
-                        <div class="remote-slot-name">${stream.name}</div>
-                        <button class="remote-slot-remove-btn" onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${stream.id}', checked: false })" title="Remove stream">✕</button>
+                        <div class="remote-slot-name">${escName}</div>
+                        <button class="remote-slot-remove-btn" onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${jsEscId}', checked: false })" title="Remove stream">✕</button>
                     `;
                 } else {
                     slot.className = slotClass;
@@ -4425,7 +4508,11 @@
 
                 if (stream) {
                     slot.className = slotClass + ' active';
-                    slot.setAttribute('onclick', `sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })`);
+                    
+                    const jsEscId = escapeHtml(escapeJsString(stream.id));
+                    const escName = escapeHtml(stream.name);
+
+                    slot.setAttribute('onclick', `sendRemoteCommand('togglePlay', { streamId: '${jsEscId}' })`);
                     
                     const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
                     const isPlaying = playerStatus.isPlaying !== false;
@@ -4436,7 +4523,7 @@
 
                     slot.innerHTML = `
                         <div class="remote-slot-index">${labelTextFunc(i)}</div>
-                        <div class="remote-slot-name">${stream.name}</div>
+                        <div class="remote-slot-name">${escName}</div>
                         <div style="display: flex; gap: 6px; font-size: 0.8rem; margin-top: 4px; align-items: center; justify-content: center; pointer-events: none;">
                             <span>${statusIcon}</span>
                             <span>${muteIcon}</span>
@@ -4486,12 +4573,17 @@
                 
                 item.className = 'remote-list-item remote-draggable-item ' + (isSelected ? 'selected' : '');
                 item.draggable = true;
-                item.setAttribute('ondragstart', `handleRemoteDragStart(event, '${stream.id}')`);
-                item.setAttribute('onclick', `handleRemoteLibraryItemClick('${stream.id}')`);
+                
+                const jsEscId = escapeHtml(escapeJsString(stream.id));
+                const escName = escapeHtml(stream.name);
+                const escCat = escapeHtml(stream.category);
+
+                item.setAttribute('ondragstart', `handleRemoteDragStart(event, '${jsEscId}')`);
+                item.setAttribute('onclick', `handleRemoteLibraryItemClick('${jsEscId}')`);
 
                 const titleHtml = `<div class="remote-item-info">
-                    <div class="remote-item-title">${stream.name}</div>
-                    <div class="remote-item-desc">${stream.category} • ${stream.active ? 'ACTIVE' : 'INACTIVE'}</div>
+                    <div class="remote-item-title">${escName}</div>
+                    <div class="remote-item-desc">${escCat} • ${stream.active ? 'ACTIVE' : 'INACTIVE'}</div>
                 </div>`;
 
                 const indicatorHtml = `<div class="remote-item-actions" style="font-size: 1.1rem; color: var(--text-muted); margin-right: 4px;">
