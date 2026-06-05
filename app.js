@@ -238,6 +238,49 @@
             
             // Asynchronously verify directory streams in the background
             verifyPublicDirectoryStreams();
+
+            // Initialize visitor/guest view counter
+            initVisitorCounter();
+        }
+
+        // Initialize visitor/guest view counter
+        function initVisitorCounter() {
+            const counterValEl = document.getElementById('visitor-count-value');
+            if (!counterValEl) return;
+
+            const sessionKey = 'visitor_counter_session_active';
+            const isNewSession = !sessionStorage.getItem(sessionKey);
+            
+            const apiBase = 'https://api.counterapi.dev/v1/matrix_stream_console/guest_visits';
+            const apiUrl = isNewSession ? `${apiBase}/up` : `${apiBase}/`;
+
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('CounterAPI response error');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && typeof data.count === 'number') {
+                        const formattedCount = Number(data.count).toLocaleString();
+                        counterValEl.innerText = formattedCount;
+                        if (isNewSession) {
+                            sessionStorage.setItem(sessionKey, 'true');
+                        }
+                    } else {
+                        throw new Error('Invalid counter response format');
+                    }
+                })
+                .catch(err => {
+                    console.warn('Failed to load guest view counter:', err);
+                    const counterEl = document.getElementById('visitor-counter');
+                    if (counterEl) {
+                        counterEl.style.display = 'none';
+                        const divider = counterEl.previousElementSibling;
+                        if (divider && divider.classList.contains('info-divider')) {
+                            divider.style.display = 'none';
+                        }
+                    }
+                });
         }
 
         // Load Youtube and Twitch Embed scripts
