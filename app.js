@@ -241,6 +241,10 @@
 
             // Initialize visitor/guest view counter
             initVisitorCounter();
+
+            // Adjust header controls to fit screen width
+            adjustHeaderControls();
+            window.addEventListener('resize', adjustHeaderControls);
         }
 
         // Initialize visitor/guest view counter
@@ -2979,6 +2983,77 @@
             
             alert(`"${name}" has been added to your sidebar streams!`);
         }
+
+        // Responsive header controls layout adjuster
+        function adjustHeaderControls() {
+            const width = window.innerWidth;
+            const mainGroup = document.getElementById('header-controls-group');
+            const dropdownMenu = document.getElementById('more-controls-dropdown-menu');
+            const moreWrapper = document.getElementById('more-controls-wrapper');
+            
+            if (!mainGroup || !dropdownMenu || !moreWrapper) return;
+            
+            // Priority order of elements to move into the dropdown as space decreases
+            const controls = [
+                { id: 'btn-refresh-all', minWidth: 1000 },
+                { id: 'cycle-btn', minWidth: 1000 },
+                { id: 'btn-fullscreen-all', minWidth: 1000 },
+                { id: 'container-layout-select', minWidth: 1200 },
+                { id: 'container-preset-select', minWidth: 1400 },
+                { id: 'btn-toggle-sidebar', minWidth: 800 },
+                { id: 'btn-browser-view', minWidth: 1550 },
+                { id: 'btn-weather-view', minWidth: 1550 },
+                { id: 'btn-settings', minWidth: 800 }
+            ];
+
+            let hasDropdownItems = false;
+
+            controls.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (!el) return;
+                
+                if (width < item.minWidth) {
+                    dropdownMenu.appendChild(el);
+                    hasDropdownItems = true;
+                } else {
+                    mainGroup.insertBefore(el, moreWrapper);
+                }
+            });
+
+            if (hasDropdownItems) {
+                moreWrapper.style.display = 'block';
+            } else {
+                moreWrapper.style.display = 'none';
+                dropdownMenu.classList.remove('show');
+                document.getElementById('btn-more-toggle').classList.remove('active');
+            }
+        }
+
+        // Toggle visibility of the more controls menu
+        function toggleMoreControlsMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('more-controls-dropdown-menu');
+            const btn = document.getElementById('btn-more-toggle');
+            if (!menu || !btn) return;
+            
+            const isShow = menu.classList.toggle('show');
+            btn.classList.toggle('active', isShow);
+        }
+
+        // Register global click handler to close dropdown on click outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('more-controls-dropdown-menu');
+            const btn = document.getElementById('btn-more-toggle');
+            if (menu && menu.classList.contains('show')) {
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.classList.remove('show');
+                    btn.classList.remove('active');
+                }
+            }
+        });
+
+        // Make toggleMoreControlsMenu available globally
+        window.toggleMoreControlsMenu = toggleMoreControlsMenu;
 
         // Run application
         initApp();

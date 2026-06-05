@@ -1903,4 +1903,96 @@
             transform: scale(1.3) rotate(-10deg);
         }
 
+        /* Responsive Controls Dropdown Menu */
+        .more-controls-wrapper {
+            position: relative;
+            display: none; /* Managed by JS */
+        }
+
+        .more-controls-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: rgba(3, 7, 18, 0.95);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 240px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.15);
+            z-index: 1100;
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .more-controls-dropdown-menu.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        /* Responsive UI adaptations for dropdown */
+        .more-controls-dropdown-menu .btn {
+            width: 100%;
+            justify-content: flex-start;
+            padding: 10px 14px;
+        }
+
+        .more-controls-dropdown-menu .layout-selector-container {
+            width: 100%;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 4px 0;
+        }
+
+        .more-controls-dropdown-menu .layout-selector-container .layout-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .more-controls-dropdown-menu .layout-selector-container .layout-dropdown {
+            width: 100% !important;
+            max-width: none !important;
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        /* Screen-width specific layout fixes to prevent overflow */
+        @media (max-width: 900px) {
+            #header-location, 
+            #header-location + .info-divider {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 750px) {
+            #weather-badge,
+            #weather-badge + .info-divider {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .brand h1 {
+                font-size: 1rem;
+            }
+            .info-dashboard {
+                padding: 4px 10px;
+                gap: 8px;
+            }
+            header {
+                padding: 0 12px;
+            }
+            #clock {
+                font-size: 0.75rem;
+            }
+        }
+
 
