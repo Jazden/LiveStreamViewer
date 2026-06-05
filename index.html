@@ -559,7 +559,10 @@
 
                  <!-- Remote Tab content: Presets -->
                  <div id="remote-tab-presets" class="remote-tab-content">
-                     <h3 class="remote-section-title">Saved Presets</h3>
+                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                         <h3 class="remote-section-title" style="margin-bottom: 0;">Saved Presets</h3>
+                         <button class="btn btn-primary btn-sm" onclick="promptRemoteSavePreset()" style="padding: 6px 12px; font-size: 0.75rem;">+ Save Current</button>
+                     </div>
                      <div id="remote-presets-list" class="remote-list-container">
                          <!-- Filled dynamically with TV's saved presets -->
                      </div>

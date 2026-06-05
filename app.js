@@ -258,6 +258,13 @@
 
             // Initialize TV receiver pairing connection
             initTVPairing();
+
+            // Auto-open pairing modal if launching TV view for the first time
+            const launchedBefore = localStorage.getItem('tv_launched_before');
+            if (!launchedBefore) {
+                localStorage.setItem('tv_launched_before', 'true');
+                setTimeout(openPairingModal, 800);
+            }
         }
 
         // Initialize visitor/guest view counter
@@ -3186,6 +3193,10 @@
 
         function handleRemoteCommand(msg) {
             console.log('[TV Pairing] Received remote command:', msg);
+            
+            // Dismiss pairing modal once we receive confirmation that remote is communicating
+            closePairingModal();
+
             switch (msg.action) {
                 case 'ping':
                     sendMqttSync();
@@ -3278,6 +3289,16 @@
                 case 'placeStream':
                     if (msg.data && msg.data.streamId && msg.data.slotIndex !== undefined) {
                         placeStreamAtActiveIndex(msg.data.streamId, msg.data.slotIndex);
+                    }
+                    break;
+                case 'savePreset':
+                    if (msg.data && msg.data.name) {
+                        savePreset(msg.data.name);
+                    }
+                    break;
+                case 'deletePreset':
+                    if (msg.data && msg.data.name) {
+                        deletePreset(msg.data.name);
                     }
                     break;
             }
@@ -3581,16 +3602,33 @@
 
                 const titleHtml = `<div class="remote-item-info">
                     <div class="remote-item-title">${preset.name}</div>
-                    <div class="remote-item-desc">Layout: ${preset.layout} • ${preset.streams.length} channels</div>
+                    <div class="remote-item-desc">Layout: ${preset.layout} • ${(preset.streams || preset.activeStreamIds || []).length} channels</div>
                 </div>`;
 
-                const actionHtml = `<div class="remote-item-actions">
+                const actionHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px; align-items: center;">
                     <button class="btn btn-sm btn-primary" onclick="sendRemoteCommand('loadPreset', { name: '${preset.name}' })" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
+                    <button class="btn btn-sm btn-danger" onclick="handleRemoteDeletePreset('${preset.name.replace(/'/g, "\\'")}')" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
                 </div>`;
 
                 item.innerHTML = titleHtml + actionHtml;
                 listEl.appendChild(item);
             });
+        }
+
+        function promptRemoteSavePreset() {
+            const name = prompt("Enter a name for the current layout preset:");
+            if (name) {
+                const trimmed = name.trim();
+                if (trimmed) {
+                    sendRemoteCommand('savePreset', { name: trimmed });
+                }
+            }
+        }
+
+        function handleRemoteDeletePreset(name) {
+            if (confirm(`Are you sure you want to delete preset "${name}"?`)) {
+                sendRemoteCommand('deletePreset', { name: name });
+            }
         }
 
         function switchRemoteTab(tabId) {
@@ -3847,6 +3885,8 @@
         window.handleRemoteLibraryItemClick = handleRemoteLibraryItemClick;
         window.renderRemoteVirtualGrid = renderRemoteVirtualGrid;
         window.renderRemoteArrangeLibraryList = renderRemoteArrangeLibraryList;
+        window.promptRemoteSavePreset = promptRemoteSavePreset;
+        window.handleRemoteDeletePreset = handleRemoteDeletePreset;
 
         // Run application
         initApp();
