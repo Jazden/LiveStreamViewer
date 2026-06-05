@@ -480,66 +480,32 @@
 
              <!-- Main Remote Control deck -->
              <div id="remote-control-deck" class="hidden">
-                 <!-- Tabs: Layout, Streams, Presets, Actions -->
-                 <div class="remote-tabs">
-                      <button class="remote-tab-btn active" id="btn-remote-tab-layout" onclick="switchRemoteTab('remote-tab-layout')">Layout</button>
-                      <button class="remote-tab-btn" id="btn-remote-tab-streams" onclick="switchRemoteTab('remote-tab-streams')">Streams</button>
-                      <button class="remote-tab-btn" id="btn-remote-tab-arrange" onclick="switchRemoteTab('remote-tab-arrange')">Arrange</button>
-                      <button class="remote-tab-btn" id="btn-remote-tab-presets" onclick="switchRemoteTab('remote-tab-presets')">Presets</button>
-                      <button class="remote-tab-btn" id="btn-remote-tab-quick" onclick="switchRemoteTab('remote-tab-quick')">Actions</button>
+                  <!-- Tabs: Streams, Arrange, Presets, Actions -->
+                  <div class="remote-tabs">
+                       <button class="remote-tab-btn active" id="btn-remote-tab-streams" onclick="switchRemoteTab('remote-tab-streams')">Control</button>
+                       <button class="remote-tab-btn" id="btn-remote-tab-arrange" onclick="switchRemoteTab('remote-tab-arrange')">Arrange</button>
+                       <button class="remote-tab-btn" id="btn-remote-tab-presets" onclick="switchRemoteTab('remote-tab-presets')">Presets</button>
+                       <button class="remote-tab-btn" id="btn-remote-tab-quick" onclick="switchRemoteTab('remote-tab-quick')">Actions</button>
+                   </div>
+
+                  <!-- Remote Tab content: Streams (Control Page) -->
+                  <div id="remote-tab-streams" class="remote-tab-content active">
+                      <h3 class="remote-section-title">TV Screen Layout</h3>
+                      <div id="remote-main-virtual-grid" class="remote-virtual-grid-container" style="margin-bottom: 12px;">
+                          <!-- Generated dynamically, mimics the TV screen layout, tap to play/pause -->
+                      </div>
+
+                      <div style="display: flex; gap: 8px; margin-bottom: 25px;">
+                          <button class="btn btn-secondary" onclick="openRemoteLayoutSelector()" style="width: 100%; justify-content: center; padding: 12px; font-weight: 600;">
+                              📺 Change Display Layout
+                          </button>
+                      </div>
+
+                      <h3 class="remote-section-title">TV Active Streams</h3>
+                      <div id="remote-active-streams-list" class="remote-list-container">
+                          <!-- Filled dynamically with current active streams on TV, play/pause/mute/volume controls -->
+                      </div>
                   </div>
-
-                 <!-- Remote Tab content: Layout -->
-                 <div id="remote-tab-layout" class="remote-tab-content active">
-                     <h3 class="remote-section-title">Display Layout</h3>
-                     <div class="remote-grid-2col">
-                         <button class="remote-btn" id="remote-layout-cinema" onclick="sendRemoteCommand('setLayout', { layout: 'cinema' })">
-                             <div class="remote-btn-icon">📺</div>
-                             <div class="remote-btn-text">Cinema (1)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-grid-2x2" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x2' })">
-                             <div class="remote-btn-icon">⏹️</div>
-                             <div class="remote-btn-text">2x2 Grid (4)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-grid-2x3" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x3' })">
-                             <div class="remote-btn-icon">⚃</div>
-                             <div class="remote-btn-text">2x3 Grid (6)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-grid-2x4" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x4' })">
-                             <div class="remote-btn-icon">⚄</div>
-                             <div class="remote-btn-text">2x4 Grid (8)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-grid-3x3" onclick="sendRemoteCommand('setLayout', { layout: 'grid-3x3' })">
-                             <div class="remote-btn-icon">🔢</div>
-                             <div class="remote-btn-text">3x3 Grid (9)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-grid-4x4" onclick="sendRemoteCommand('setLayout', { layout: 'grid-4x4' })">
-                             <div class="remote-btn-icon">🔲</div>
-                             <div class="remote-btn-text">4x4 Grid (16)</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-layout-1-5" onclick="sendRemoteCommand('setLayout', { layout: 'layout-1-5' })">
-                             <div class="remote-btn-icon">🎚️</div>
-                             <div class="remote-btn-text">1 Lg + 5 Sm</div>
-                         </button>
-                         <button class="remote-btn" id="remote-layout-layout-2-3" onclick="sendRemoteCommand('setLayout', { layout: 'layout-2-3' })">
-                             <div class="remote-btn-icon">🎛️</div>
-                             <div class="remote-btn-text">2 Lg + 3 Sm</div>
-                         </button>
-                     </div>
-                 </div>
-
-                 <!-- Remote Tab content: Streams -->
-                 <div id="remote-tab-streams" class="remote-tab-content">
-                     <h3 class="remote-section-title">TV Active Streams</h3>
-                     <div id="remote-active-streams-list" class="remote-list-container">
-                         <!-- Filled dynamically with current active streams on TV, play/pause/mute buttons -->
-                     </div>
-
-                     <h3 class="remote-section-title" style="margin-top: 20px;">Library Directory</h3>
-                     <div id="remote-library-streams-list" class="remote-list-container">
-                         <!-- Filled dynamically with all library streams, toggle active status -->
-                     </div>
-                 </div>
 
                  <!-- Remote Tab content: Arrange -->
                  <div id="remote-tab-arrange" class="remote-tab-content">
@@ -602,7 +568,51 @@
                      </form>
                  </div>
              </div>
-         </div>
+          </div>
+
+          <!-- Remote Layout Selector Popup (Bottom Sheet) -->
+          <div id="remote-layout-popup" class="remote-modal-overlay" onclick="closeRemoteLayoutSelectorOnOverlay(event)">
+              <div class="remote-modal-content">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                      <h3 style="margin: 0; color: white; font-size: 1.1rem; font-weight: 700;">Select TV Layout</h3>
+                      <button onclick="closeRemoteLayoutSelector()" style="background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; padding: 4px;">✕</button>
+                  </div>
+                  <div class="remote-grid-2col">
+                      <button class="remote-btn" id="remote-layout-cinema" onclick="sendRemoteCommand('setLayout', { layout: 'cinema' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">📺</div>
+                          <div class="remote-btn-text">Cinema (1)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-grid-2x2" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x2' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">⏹️</div>
+                          <div class="remote-btn-text">2x2 Grid (4)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-grid-2x3" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x3' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">⚃</div>
+                          <div class="remote-btn-text">2x3 Grid (6)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-grid-2x4" onclick="sendRemoteCommand('setLayout', { layout: 'grid-2x4' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">⚄</div>
+                          <div class="remote-btn-text">2x4 Grid (8)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-grid-3x3" onclick="sendRemoteCommand('setLayout', { layout: 'grid-3x3' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">🔢</div>
+                          <div class="remote-btn-text">3x3 Grid (9)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-grid-4x4" onclick="sendRemoteCommand('setLayout', { layout: 'grid-4x4' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">🔲</div>
+                          <div class="remote-btn-text">4x4 Grid (16)</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-layout-1-5" onclick="sendRemoteCommand('setLayout', { layout: 'layout-1-5' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">🎚️</div>
+                          <div class="remote-btn-text">1 Lg + 5 Sm</div>
+                      </button>
+                      <button class="remote-btn" id="remote-layout-layout-2-3" onclick="sendRemoteCommand('setLayout', { layout: 'layout-2-3' }); closeRemoteLayoutSelector();">
+                          <div class="remote-btn-icon">🎛️</div>
+                          <div class="remote-btn-text">2 Lg + 3 Sm</div>
+                      </button>
+                  </div>
+              </div>
+          </div>
      </div>
 
      <!-- Video.js HLS Javascript Library -->

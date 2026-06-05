@@ -3301,6 +3301,11 @@
                         deletePreset(msg.data.name);
                     }
                     break;
+                case 'setVolume':
+                    if (msg.data && msg.data.streamId && msg.data.volume !== undefined) {
+                        setStreamVolume(msg.data.streamId, parseInt(msg.data.volume));
+                    }
+                    break;
             }
             sendMqttSync();
         }
@@ -3505,6 +3510,7 @@
             renderRemoteLibraryStreamsList();
             renderRemotePresetsList();
             renderRemoteVirtualGrid();
+            renderRemoteMainVirtualGrid();
             renderRemoteArrangeLibraryList();
         }
 
@@ -3520,7 +3526,9 @@
             }
 
             activeStreams.forEach(stream => {
-                const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
+                const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false, volume: 100 };
+                const isPlaying = playerStatus.isPlaying !== false;
+                const isMuted = playerStatus.isMuted === true;
 
                 const item = document.createElement('div');
                 item.className = 'remote-list-item';
@@ -3530,25 +3538,38 @@
                     <div class="remote-item-desc">${stream.category} • ${stream.type.toUpperCase()}</div>
                 </div>`;
 
-                const actionsHtml = `<div class="remote-item-actions">
+                const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 6px;">
                     <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'up' })" title="Move Up" style="font-size: 0.75rem;">
                         ▲
                     </button>
                     <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${stream.id}', direction: 'down' })" title="Move Down" style="font-size: 0.75rem;">
                         ▼
                     </button>
-                    <button class="remote-action-btn ${playerStatus.isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })" title="Play / Pause">
-                        ${playerStatus.isPlaying ? '⏸️' : '▶️'}
+                    <button class="remote-action-btn ${isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })" title="Play / Pause">
+                        ${isPlaying ? '⏸️' : '▶️'}
                     </button>
-                    <button class="remote-action-btn ${playerStatus.isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${stream.id}' })" title="Mute / Unmute">
-                        🔊
+                    <button class="remote-action-btn ${isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${stream.id}' })" title="Mute / Unmute">
+                        ${isMuted ? '🔇' : '🔊'}
                     </button>
                     <button class="remote-action-btn" onclick="sendRemoteCommand('fullscreenStream', { streamId: '${stream.id}' })" title="Fullscreen">
                         🖥️
                     </button>
                 </div>`;
 
-                item.innerHTML = titleHtml + actionsHtml;
+                const volumeControlHtml = `<div style="display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); width: 30px;">Vol</span>
+                    <input type="range" class="remote-volume-slider" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" onchange="sendRemoteCommand('setVolume', { streamId: '${stream.id}', volume: this.value })" oninput="this.nextElementSibling.innerText = this.value + '%'" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 32px; text-align: right;">${isMuted ? 'Muted' : (playerStatus.volume !== undefined ? playerStatus.volume + '%' : '100%')}</span>
+                </div>`;
+
+                item.innerHTML = `<div style="display: flex; flex-direction: column; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        ${titleHtml}
+                        ${actionsHtml}
+                    </div>
+                    ${volumeControlHtml}
+                </div>`;
+
                 listEl.appendChild(item);
             });
         }
@@ -3832,6 +3853,79 @@
             }
         }
 
+        function renderRemoteMainVirtualGrid() {
+            const gridEl = document.getElementById('remote-main-virtual-grid');
+            if (!gridEl) return;
+            gridEl.innerHTML = '';
+
+            const layout = remoteState.layout || 'cinema';
+            const capacity = LAYOUT_CAPACITIES[layout] || 4;
+            const activeStreams = (remoteState.streams || []).filter(s => s.active);
+
+            // Set the class corresponding to the active TV layout and clear any inline templates
+            gridEl.className = 'remote-virtual-grid-container ' + layout;
+            gridEl.style.gridTemplateColumns = '';
+
+            const labelTextFunc = (idx) => capacity > 6 ? `#${idx + 1}` : `Window ${idx + 1}`;
+
+            for (let i = 0; i < capacity; i++) {
+                const stream = activeStreams[i];
+                const slot = document.createElement('div');
+                
+                let slotClass = 'remote-virtual-slot';
+                if (layout === 'layout-1-5') {
+                    if (i === 0) slotClass += ' large';
+                } else if (layout === 'layout-2-3') {
+                    if (i < 2) slotClass += ' large';
+                    else slotClass += ' small';
+                }
+
+                if (stream) {
+                    slot.className = slotClass + ' active';
+                    slot.setAttribute('onclick', `sendRemoteCommand('togglePlay', { streamId: '${stream.id}' })`);
+                    
+                    const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
+                    const isPlaying = playerStatus.isPlaying !== false;
+                    const isMuted = playerStatus.isMuted === true;
+
+                    const statusIcon = isPlaying ? '⏸️' : '▶️';
+                    const muteIcon = isMuted ? '🔇' : '🔊';
+
+                    slot.innerHTML = `
+                        <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                        <div class="remote-slot-name">${stream.name}</div>
+                        <div style="display: flex; gap: 6px; font-size: 0.8rem; margin-top: 4px; align-items: center; justify-content: center; pointer-events: none;">
+                            <span>${statusIcon}</span>
+                            <span>${muteIcon}</span>
+                        </div>
+                    `;
+                } else {
+                    slot.className = slotClass;
+                    slot.innerHTML = `
+                        <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                        <div class="remote-slot-empty">Empty</div>
+                    `;
+                }
+                gridEl.appendChild(slot);
+            }
+        }
+
+        function openRemoteLayoutSelector() {
+            const popup = document.getElementById('remote-layout-popup');
+            if (popup) popup.classList.add('open');
+        }
+
+        function closeRemoteLayoutSelector() {
+            const popup = document.getElementById('remote-layout-popup');
+            if (popup) popup.classList.remove('open');
+        }
+
+        function closeRemoteLayoutSelectorOnOverlay(e) {
+            if (e.target === document.getElementById('remote-layout-popup')) {
+                closeRemoteLayoutSelector();
+            }
+        }
+
         function renderRemoteArrangeLibraryList() {
             const listEl = document.getElementById('remote-arrange-library-list');
             if (!listEl) return;
@@ -3887,6 +3981,10 @@
         window.renderRemoteArrangeLibraryList = renderRemoteArrangeLibraryList;
         window.promptRemoteSavePreset = promptRemoteSavePreset;
         window.handleRemoteDeletePreset = handleRemoteDeletePreset;
+        window.renderRemoteMainVirtualGrid = renderRemoteMainVirtualGrid;
+        window.openRemoteLayoutSelector = openRemoteLayoutSelector;
+        window.closeRemoteLayoutSelector = closeRemoteLayoutSelector;
+        window.closeRemoteLayoutSelectorOnOverlay = closeRemoteLayoutSelectorOnOverlay;
 
         // Run application
         initApp();

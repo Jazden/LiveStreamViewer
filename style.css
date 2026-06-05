@@ -2267,6 +2267,44 @@
             box-shadow: 0 0 8px var(--accent);
         }
 
+        /* Remote Layout Popup Bottom Sheet Styles */
+        .remote-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: flex-end; /* Bottom sheet styling */
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .remote-modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .remote-modal-content {
+            background: #0d1222;
+            border-top: 1.5px solid rgba(6, 182, 212, 0.3);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 500px;
+            padding: 24px 20px 40px;
+            box-sizing: border-box;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+        }
+        .remote-modal-overlay.open .remote-modal-content {
+            transform: translateY(0);
+        }
+
         /* Virtual TV Grid Arrange Tab Styles */
         .remote-virtual-grid-container {
             display: grid;
