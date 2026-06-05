@@ -3889,9 +3889,9 @@
                 const isCurrent = d.code === remotePairCode;
                 item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
                 
-                const titleHtml = `<div class="remote-item-info">
+                const titleHtml = `<div class="remote-item-info" onclick="switchRemotePairing('${d.code}')" style="cursor: pointer; flex-grow: 1;">
                     <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${d.name} ${isCurrent ? '🟢' : ''}</div>
-                    <div class="remote-item-desc">Code: ${d.code}</div>
+                    <div class="remote-item-desc">Code: ${d.code} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
                 </div>`;
 
                 const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px;">
