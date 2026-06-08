@@ -1038,18 +1038,44 @@
         }
 
         // Render card structure in DOM
+        // Render card structure in DOM
         function renderStreamCard(parent, stream) {
             const card = document.createElement('div');
             card.id = `card-${stream.id}`;
             card.className = 'stream-card';
             
-            // HTML5 Drag and Drop event attributes
+            // HTML5 Drag and Drop event attributes bound programmatically
             card.setAttribute('draggable', 'true');
-            card.setAttribute('ondragstart', `handleDragStart(event, '${stream.id}')`);
-            card.setAttribute('ondragover', `handleDragOver(event)`);
-            card.setAttribute('ondragleave', `handleDragLeave(event)`);
-            card.setAttribute('ondrop', `handleDrop(event, '${stream.id}')`);
-            card.setAttribute('ondragend', `handleDragEnd(event)`);
+            card.addEventListener('dragstart', (event) => handleDragStart(event, stream.id));
+            card.addEventListener('dragover', (event) => handleDragOver(event));
+            card.addEventListener('dragleave', (event) => handleDragLeave(event));
+            card.addEventListener('drop', (event) => handleDrop(event, stream.id));
+            card.addEventListener('dragend', (event) => handleDragEnd(event));
+
+            // Delegate stream control clicks safely
+            card.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-action]');
+                if (!btn) return;
+                const action = btn.getAttribute('data-action');
+                if (action === 'fullscreen') {
+                    fullscreenStream(stream.id);
+                } else if (action === 'popout') {
+                    popoutStream(stream.id);
+                } else if (action === 'snapshot') {
+                    captureSnapshot(stream.id);
+                } else if (action === 'play-pause') {
+                    togglePlay(stream.id);
+                } else if (action === 'mute') {
+                    toggleMute(stream.id);
+                }
+            });
+
+            // Delegate volume slider input safely
+            card.addEventListener('input', (event) => {
+                const slider = event.target.closest('[data-action="volume"]');
+                if (!slider) return;
+                setStreamVolume(stream.id, slider.value);
+            });
             
             // Add sizing tags for asymmetric layouts
             if (appState.layout === 'layout-1-5') {
@@ -1072,7 +1098,7 @@
                     <div class="stream-controls">
                         <span class="control-note">Console Event Log</span>
                         <div style="display: flex; gap: 8px;">
-                            <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                            <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
                                 ${FULLSCREEN_SVG}
                             </button>
                         </div>
@@ -1083,10 +1109,10 @@
                     <div class="stream-controls">
                         <span class="control-note">External Embed (Custom controls unavailable)</span>
                         <div style="display: flex; gap: 8px;">
-                            <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                            <button class="control-btn popout-btn" data-action="popout" title="Pop-out Stream (New Window)">
                                 ${POPOUT_SVG}
                             </button>
-                            <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                            <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
                                 ${FULLSCREEN_SVG}
                             </button>
                         </div>
@@ -1095,7 +1121,7 @@
             } else {
                 const isSnapshotSupported = stream.type === 'hls' || stream.type === 'weather';
                 const snapshotButtonHtml = isSnapshotSupported ? `
-                    <button class="control-btn snapshot-btn" onclick="captureSnapshot('${stream.id}')" title="Capture Snapshot Frame">
+                    <button class="control-btn snapshot-btn" data-action="snapshot" title="Capture Snapshot Frame">
                         ${SNAPSHOT_SVG}
                     </button>
                 ` : '';
@@ -1106,7 +1132,7 @@
                             <span class="control-note">Weather Forecast Cam</span>
                             <div style="display: flex; gap: 8px;">
                                 ${snapshotButtonHtml}
-                                <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
                                     ${FULLSCREEN_SVG}
                                 </button>
                             </div>
@@ -1115,21 +1141,21 @@
                 } else {
                     controlsHtml = `
                         <div class="stream-controls">
-                            <button class="control-btn play-pause-btn" onclick="togglePlay('${stream.id}')" title="Play/Pause">
+                            <button class="control-btn play-pause-btn" data-action="play-pause" title="Play/Pause">
                                 ${PLAY_SVG}
                             </button>
                             <div class="volume-control">
-                                <button class="control-btn volume-mute-btn" onclick="toggleMute('${stream.id}')" title="Mute/Unmute">
+                                <button class="control-btn volume-mute-btn" data-action="mute" title="Mute/Unmute">
                                     ${MUTE_SVG}
                                 </button>
-                                <input type="range" min="0" max="100" value="50" class="volume-slider" oninput="setStreamVolume('${stream.id}', this.value)" title="Volume">
+                                <input type="range" min="0" max="100" value="50" class="volume-slider" data-action="volume" title="Volume">
                             </div>
                             <div style="display: flex; gap: 8px;">
                                 ${snapshotButtonHtml}
-                                <button class="control-btn popout-btn" onclick="popoutStream('${stream.id}')" title="Pop-out Stream (New Window)">
+                                <button class="control-btn popout-btn" data-action="popout" title="Pop-out Stream (New Window)">
                                     ${POPOUT_SVG}
                                 </button>
-                                <button class="control-btn fullscreen-btn" onclick="fullscreenStream('${stream.id}')" title="Fullscreen">
+                                <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
                                     ${FULLSCREEN_SVG}
                                 </button>
                             </div>
@@ -2793,11 +2819,14 @@
                 if (isAlreadyAdded) {
                     actionContainer.innerHTML = `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`;
                 } else {
-                    const jsEscName = escapeHtml(escapeJsString(item.name));
-                    const jsEscUrl = escapeHtml(escapeJsString(item.url));
-                    const jsEscType = escapeHtml(escapeJsString(item.type));
-                    const jsEscCat = escapeHtml(escapeJsString(item.category));
-                    actionContainer.innerHTML = `<button class="btn btn-primary" onclick="addDirectoryStreamFromPreview('${jsEscName}', '${jsEscUrl}', '${jsEscType}', '${jsEscCat}')">Add to Dashboard</button>`;
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-primary';
+                    btn.innerText = 'Add to Dashboard';
+                    btn.addEventListener('click', () => {
+                        addDirectoryStreamFromPreview(item.name, item.url, item.type, item.category);
+                    });
+                    actionContainer.innerHTML = '';
+                    actionContainer.appendChild(btn);
                 }
             }
 
@@ -3014,15 +3043,6 @@
                 const escDesc = escapeHtml(item.desc);
                 const escEmoji = escapeHtml(item.emoji);
 
-                const jsEscName = escapeHtml(escapeJsString(item.name));
-                const jsEscUrl = escapeHtml(escapeJsString(item.url));
-                const jsEscType = escapeHtml(escapeJsString(item.type));
-                const jsEscCat = escapeHtml(escapeJsString(item.category));
-
-                const buttonHtml = isAlreadyAdded 
-                    ? `<button class="btn btn-success" disabled style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;">Added ✓</button>`
-                    : `<button class="btn btn-primary" onclick="addDirectoryStream('${jsEscName}', '${jsEscUrl}', '${jsEscType}', '${jsEscCat}')">Add Stream</button>`;
-                
                 card.innerHTML = `
                     <div class="browser-card-thumb" style="background: ${bgGradient}">
                         <div class="browser-card-category">${escCat}</div>
@@ -3034,9 +3054,27 @@
                         <div class="browser-card-desc">${escDesc}</div>
                     </div>
                     <div class="browser-card-action">
-                        ${buttonHtml}
                     </div>
                 `;
+
+                const actionDiv = card.querySelector('.browser-card-action');
+                if (isAlreadyAdded) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-success';
+                    btn.disabled = true;
+                    btn.style.cssText = 'background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; pointer-events: none;';
+                    btn.innerText = 'Added ✓';
+                    actionDiv.appendChild(btn);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-primary';
+                    btn.innerText = 'Add Stream';
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent preview onclick on the parent card
+                        addDirectoryStream(item.name, item.url, item.type, item.category);
+                    });
+                    actionDiv.appendChild(btn);
+                }
                 
                 grid.appendChild(card);
             });
@@ -4195,8 +4233,9 @@
                         item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
                         item.style.cursor = 'pointer';
                         
-                        const jsEscCode = escapeHtml(escapeJsString(d.code));
-                        item.setAttribute('onclick', `selectDisplayFromSwitcher('${jsEscCode}')`);
+                        item.addEventListener('click', () => {
+                            selectDisplayFromSwitcher(d.code);
+                        });
                         
                         const titleHtml = `<div class="remote-item-info">
                             <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escapeHtml(d.name)} ${d.hmacKey ? '' : '<span style="color:#ef4444;" title="Insecure Connection">⚠️</span>'}</div>
@@ -4427,19 +4466,32 @@
                 
                 const escCode = escapeHtml(d.code);
                 const escName = escapeHtml(d.name);
-                const jsEscCode = escapeHtml(escapeJsString(d.code));
                 
-                const titleHtml = `<div class="remote-item-info" onclick="switchRemotePairing('${jsEscCode}')" style="cursor: pointer; flex-grow: 1;">
-                    <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escName} ${isCurrent ? '🟢' : ''}</div>
-                    <div class="remote-item-desc">Code: ${escCode} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
-                </div>`;
+                item.innerHTML = `
+                    <div class="remote-item-info" data-action="switch" data-code="${escCode}" style="cursor: pointer; flex-grow: 1;">
+                        <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escName} ${isCurrent ? '🟢' : ''}</div>
+                        <div class="remote-item-desc">Code: ${escCode} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
+                    </div>
+                    <div class="remote-item-actions" style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-secondary" data-action="rename" data-code="${escCode}" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
+                        <button class="btn btn-sm btn-danger" data-action="remove" data-code="${escCode}" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
+                    </div>
+                `;
 
-                const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-sm btn-secondary" onclick="renamePairing('${jsEscCode}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
-                    <button class="btn btn-sm btn-danger" onclick="removePairing('${jsEscCode}')" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
-                </div>`;
+                item.addEventListener('click', (e) => {
+                    const target = e.target.closest('[data-action]');
+                    if (!target) return;
+                    const action = target.getAttribute('data-action');
+                    const code = target.getAttribute('data-code');
+                    if (action === 'switch') {
+                        switchRemotePairing(code);
+                    } else if (action === 'rename') {
+                        renamePairing(code);
+                    } else if (action === 'remove') {
+                        removePairing(code);
+                    }
+                });
 
-                item.innerHTML = titleHtml + actionsHtml;
                 listEl.appendChild(item);
             });
         }
@@ -4621,7 +4673,7 @@
                 const escName = escapeHtml(stream.name);
                 const escCat = escapeHtml(stream.category);
                 const escType = escapeHtml(stream.type.toUpperCase());
-                const jsEscId = escapeHtml(escapeJsString(stream.id));
+                const escId = escapeHtml(stream.id);
 
                 const titleHtml = `<div class="remote-item-info">
                     <div class="remote-item-title">${escName}</div>
@@ -4629,27 +4681,27 @@
                 </div>`;
 
                 const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 6px;">
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${jsEscId}', direction: 'up' })" title="Move Up" style="font-size: 0.75rem;">
+                    <button class="remote-action-btn" data-action="move-up" data-stream-id="${escId}" title="Move Up" style="font-size: 0.75rem;">
                         ▲
                     </button>
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('moveStream', { id: '${jsEscId}', direction: 'down' })" title="Move Down" style="font-size: 0.75rem;">
+                    <button class="remote-action-btn" data-action="move-down" data-stream-id="${escId}" title="Move Down" style="font-size: 0.75rem;">
                         ▼
                     </button>
-                    <button class="remote-action-btn ${isPlaying ? 'active' : ''}" onclick="sendRemoteCommand('togglePlay', { streamId: '${jsEscId}' })" title="Play / Pause">
+                    <button class="remote-action-btn ${isPlaying ? 'active' : ''}" data-action="toggle-play" data-stream-id="${escId}" title="Play / Pause">
                         ${isPlaying ? '⏸️' : '▶️'}
                     </button>
-                    <button class="remote-action-btn ${isMuted ? 'active' : ''}" onclick="sendRemoteCommand('toggleMute', { streamId: '${jsEscId}' })" title="Mute / Unmute">
+                    <button class="remote-action-btn ${isMuted ? 'active' : ''}" data-action="toggle-mute" data-stream-id="${escId}" title="Mute / Unmute">
                         ${isMuted ? '🔇' : '🔊'}
                     </button>
-                    <button class="remote-action-btn" onclick="sendRemoteCommand('fullscreenStream', { streamId: '${jsEscId}' })" title="Fullscreen">
+                    <button class="remote-action-btn" data-action="fullscreen" data-stream-id="${escId}" title="Fullscreen">
                         🖥️
                     </button>
                 </div>`;
 
                 const volumeControlHtml = `<div style="display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.03);">
                     <span style="font-size: 0.75rem; color: var(--text-muted); width: 30px;">Vol</span>
-                    <input type="range" class="remote-volume-slider" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" onchange="sendRemoteCommand('setVolume', { streamId: '${jsEscId}', volume: this.value })" oninput="this.nextElementSibling.innerText = this.value + '%'" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 32px; text-align: right;">${isMuted ? 'Muted' : (playerStatus.volume !== undefined ? playerStatus.volume + '%' : '100%')}</span>
+                    <input type="range" class="remote-volume-slider" data-stream-id="${escId}" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
+                    <span class="vol-label" style="font-size: 0.75rem; color: var(--text-muted); min-width: 32px; text-align: right;">${isMuted ? 'Muted' : (playerStatus.volume !== undefined ? playerStatus.volume + '%' : '100%')}</span>
                 </div>`;
 
                 item.innerHTML = `<div style="display: flex; flex-direction: column; width: 100%;">
@@ -4659,6 +4711,35 @@
                     </div>
                     ${volumeControlHtml}
                 </div>`;
+
+                // Add actions listener
+                item.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-action]');
+                    if (!btn) return;
+                    const action = btn.getAttribute('data-action');
+                    const streamId = btn.getAttribute('data-stream-id');
+                    if (action === 'move-up') {
+                        sendRemoteCommand('moveStream', { id: streamId, direction: 'up' });
+                    } else if (action === 'move-down') {
+                        sendRemoteCommand('moveStream', { id: streamId, direction: 'down' });
+                    } else if (action === 'toggle-play') {
+                        sendRemoteCommand('togglePlay', { streamId: streamId });
+                    } else if (action === 'toggle-mute') {
+                        sendRemoteCommand('toggleMute', { streamId: streamId });
+                    } else if (action === 'fullscreen') {
+                        sendRemoteCommand('fullscreenStream', { streamId: streamId });
+                    }
+                });
+
+                // Add volume slider listeners
+                const slider = item.querySelector('.remote-volume-slider');
+                const label = item.querySelector('.vol-label');
+                slider.addEventListener('change', (e) => {
+                    sendRemoteCommand('setVolume', { streamId: stream.id, volume: e.target.value });
+                });
+                slider.addEventListener('input', (e) => {
+                    label.innerText = e.target.value + '%';
+                });
 
                 listEl.appendChild(item);
             });
@@ -4682,7 +4763,6 @@
                 const escName = escapeHtml(stream.name);
                 const escCat = escapeHtml(stream.category);
                 const escType = escapeHtml(stream.type.toUpperCase());
-                const jsEscId = escapeHtml(escapeJsString(stream.id));
 
                 const titleHtml = `<div class="remote-item-info">
                     <div class="remote-item-title">${escName}</div>
@@ -4691,12 +4771,18 @@
 
                 const switchHtml = `<div class="remote-item-actions">
                     <label class="remote-switch">
-                        <input type="checkbox" ${stream.active ? 'checked' : ''} onchange="sendRemoteCommand('toggleStream', { streamId: '${jsEscId}', checked: this.checked })">
+                        <input type="checkbox" ${stream.active ? 'checked' : ''}>
                         <span class="remote-slider"></span>
                     </label>
                 </div>`;
 
                 item.innerHTML = titleHtml + switchHtml;
+
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                checkbox.addEventListener('change', (e) => {
+                    sendRemoteCommand('toggleStream', { streamId: stream.id, checked: e.target.checked });
+                });
+
                 listEl.appendChild(item);
             });
         }
@@ -4718,7 +4804,6 @@
 
                 const escName = escapeHtml(preset.name);
                 const escLayout = escapeHtml(preset.layout);
-                const jsEscName = escapeHtml(escapeJsString(preset.name));
 
                 const titleHtml = `<div class="remote-item-info">
                     <div class="remote-item-title">${escName}</div>
@@ -4726,11 +4811,19 @@
                 </div>`;
 
                 const actionHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px; align-items: center;">
-                    <button class="btn btn-sm btn-primary" onclick="sendRemoteCommand('loadPreset', { name: '${jsEscName}' })" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
-                    <button class="btn btn-sm btn-danger" onclick="handleRemoteDeletePreset('${jsEscName}')" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
+                    <button class="btn btn-sm btn-primary btn-load" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
+                    <button class="btn btn-sm btn-danger btn-delete" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
                 </div>`;
 
                 item.innerHTML = titleHtml + actionHtml;
+
+                item.querySelector('.btn-load').addEventListener('click', () => {
+                    sendRemoteCommand('loadPreset', { name: preset.name });
+                });
+                item.querySelector('.btn-delete').addEventListener('click', () => {
+                    handleRemoteDeletePreset(preset.name);
+                });
+
                 listEl.appendChild(item);
             });
         }
@@ -4930,26 +5023,30 @@
                     slot.className = slotClass + ' active';
                     slot.draggable = true;
                     
-                    const jsEscId = escapeHtml(escapeJsString(stream.id));
                     const escName = escapeHtml(stream.name);
 
-                    slot.setAttribute('ondragstart', `handleRemoteDragStart(event, '${jsEscId}')`);
-                    slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
-                    slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
-                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, '${jsEscId}')`);
-                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, '${jsEscId}')`);
+                    slot.addEventListener('dragstart', (event) => handleRemoteDragStart(event, stream.id));
+                    slot.addEventListener('dragover', (event) => handleRemoteDragOver(event));
+                    slot.addEventListener('dragleave', (event) => handleRemoteDragLeave(event));
+                    slot.addEventListener('drop', (event) => handleRemoteDrop(event, i, stream.id));
+                    slot.addEventListener('click', () => handleRemoteSlotClick(i, stream.id));
                     
                     slot.innerHTML = `
                         <div class="remote-slot-index">${labelTextFunc(i)}</div>
                         <div class="remote-slot-name">${escName}</div>
-                        <button class="remote-slot-remove-btn" onclick="event.stopPropagation(); sendRemoteCommand('toggleStream', { streamId: '${jsEscId}', checked: false })" title="Remove stream">✕</button>
+                        <button class="remote-slot-remove-btn" title="Remove stream">✕</button>
                     `;
+                    
+                    slot.querySelector('.remote-slot-remove-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        sendRemoteCommand('toggleStream', { streamId: stream.id, checked: false });
+                    });
                 } else {
                     slot.className = slotClass;
-                    slot.setAttribute('ondragover', 'handleRemoteDragOver(event)');
-                    slot.setAttribute('ondragleave', 'handleRemoteDragLeave(event)');
-                    slot.setAttribute('ondrop', `handleRemoteDrop(event, ${i}, null)`);
-                    slot.setAttribute('onclick', `handleRemoteSlotClick(${i}, null)`);
+                    slot.addEventListener('dragover', (event) => handleRemoteDragOver(event));
+                    slot.addEventListener('dragleave', (event) => handleRemoteDragLeave(event));
+                    slot.addEventListener('drop', (event) => handleRemoteDrop(event, i, null));
+                    slot.addEventListener('click', () => handleRemoteSlotClick(i, null));
                     
                     slot.innerHTML = `
                         <div class="remote-slot-index">${labelTextFunc(i)}</div>
@@ -4990,10 +5087,11 @@
                 if (stream) {
                     slot.className = slotClass + ' active';
                     
-                    const jsEscId = escapeHtml(escapeJsString(stream.id));
                     const escName = escapeHtml(stream.name);
 
-                    slot.setAttribute('onclick', `sendRemoteCommand('togglePlay', { streamId: '${jsEscId}' })`);
+                    slot.addEventListener('click', () => {
+                        sendRemoteCommand('togglePlay', { streamId: stream.id });
+                    });
                     
                     const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
                     const isPlaying = playerStatus.isPlaying !== false;
@@ -5055,12 +5153,11 @@
                 item.className = 'remote-list-item remote-draggable-item ' + (isSelected ? 'selected' : '');
                 item.draggable = true;
                 
-                const jsEscId = escapeHtml(escapeJsString(stream.id));
                 const escName = escapeHtml(stream.name);
                 const escCat = escapeHtml(stream.category);
 
-                item.setAttribute('ondragstart', `handleRemoteDragStart(event, '${jsEscId}')`);
-                item.setAttribute('onclick', `handleRemoteLibraryItemClick('${jsEscId}')`);
+                item.addEventListener('dragstart', (event) => handleRemoteDragStart(event, stream.id));
+                item.addEventListener('click', () => handleRemoteLibraryItemClick(stream.id));
 
                 const titleHtml = `<div class="remote-item-info">
                     <div class="remote-item-title">${escName}</div>

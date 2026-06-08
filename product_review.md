@@ -140,7 +140,7 @@ This document tracks all identified performance, architectural, and design issue
 - **Proposed Solution**: Reduce cookie lifetime to session-only or a short period (e.g., 7 days). Consider prompting users to regenerate codes periodically. Store the code in `sessionStorage` if cross-session persistence is not required.
 - **Notes**: 
 
-### [ ] Inline `onclick` Handlers with String-Interpolated Data
+### [x] Inline `onclick` Handlers with String-Interpolated Data
 - **Category**: Security — Data Sanitization (Low)
 - **Severity**: Low
 - **File**: [app.js L1074-L1131](file:///home/jazden/Projects/LiveStreamViewer/app.js#L1074-L1131), [app.js L2799](file:///home/jazden/Projects/LiveStreamViewer/app.js#L2799), [app.js L3957-L3964](file:///home/jazden/Projects/LiveStreamViewer/app.js#L3957-L3964)
