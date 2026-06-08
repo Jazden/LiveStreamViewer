@@ -6,23 +6,23 @@ This document tracks all identified performance, architectural, and design issue
 
 ## High Severity Issues
 
-### [ ] Twitch Player Memory & Audio Leak
+### [x] Twitch Player Memory & Audio Leak
 - **Category**: Performance / Quality (Bug Tester)
 - **Description**: Deactivating streams or shifting layout grids fails to properly destroy/clean up existing Twitch player instances. As a result, iframe processes remain active, stream audio continues playing invisibly in the background, and browser memory leaks accumulate over time.
 - **Proposed Solution**: Maintain a registry of active Twitch SDK player instances and call `.destroy()` or clear the target element's content cleanly whenever a layout shifts or a stream is closed.
-- **Notes**: 
+- **Notes**: Completed by pausing, muting, and DOM unloading active Twitch elements during single-stream/full purges.
 
-### [ ] Redundant & Heavy Player Re-initialization
+### [x] Redundant & Heavy Player Re-initialization
 - **Category**: Performance (Bug Tester)
 - **Description**: Every layout modification or channel toggle triggers a full teardown and rebuild of every iframe player from scratch. This creates high CPU/GPU spikes, increases bandwidth waste, and causes irritating player loading/buffering delays.
 - **Proposed Solution**: Reuse existing iframe containers and player objects where possible, adjusting CSS properties (e.g., width, height, visibility) instead of reconstructing DOM subtrees.
-- **Notes**: 
+- **Notes**: Completed by caching playing iframe wrappers in renderActiveStreams, updating dynamic CSS layout classes (large/small), and utilizing CSS flex/grid order properties to avoid DOM movement reloading.
 
-### [ ] Monolithic File Bloat (`app.js`)
+### [x] Monolithic File Bloat (`app.js`)
 - **Category**: Architecture (Project Architect)
 - **Description**: `app.js` is a single file containing over 4,600 lines of code. It mixes player instance state, event dispatching, DOM updates, network request handlers, and layout settings in one namespace. This makes debugging, modifying, and testing code highly error-prone.
 - **Proposed Solution**: Split the script into logical ES Modules (e.g., `stateManager.js`, `playerManager.js`, `uiController.js`, `apiClient.js`) and load them natively or bundle them.
-- **Notes**: 
+- **Notes**: Completed by modularizing app.js into state.js, crypto.js, player.js, mqtt.js, and ui.js ES Modules.
 
 ---
 
