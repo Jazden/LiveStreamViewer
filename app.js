@@ -35,6 +35,7 @@
         // Active Player instances reference
         let activePlayers = {};
         let tvSyncMasterCode = '';
+        let tvSyncMasterSecret = '';
         let tvOriginalStateBackup = null;
         let lastSyncedMasterJson = '';
         let activeWeatherAnimations = {};
@@ -3133,14 +3134,339 @@
         const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
         const MQTT_TOPIC_PREFIX = 'livestreamviewer/pair/';
 
-        function getMqttTopic(code) {
-            let hash = 0;
-            const str = "ls_salt_" + code;
-            for (let i = 0; i < str.length; i++) {
-                hash = (hash << 5) - hash + str.charCodeAt(i);
-                hash |= 0;
+        // --- CRYPTO UTILITIES ---
+        function base64urlEncode(bytes) {
+            let binary = '';
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
             }
-            return MQTT_TOPIC_PREFIX + Math.abs(hash).toString(16);
+            const base64 = btoa(binary);
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        function base64urlDecode(str) {
+            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            while (base64.length % 4) {
+                base64 += '=';
+            }
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        function generateHmacSecret() {
+            const bytes = new Uint8Array(32);
+            if (window.crypto && crypto.getRandomValues) {
+                crypto.getRandomValues(bytes);
+            } else {
+                console.warn("[Crypto] window.crypto.getRandomValues not available. Falling back to Math.random.");
+                for (let i = 0; i < 32; i++) {
+                    bytes[i] = Math.floor(Math.random() * 256);
+                }
+            }
+            return base64urlEncode(bytes);
+        }
+
+        function pureJsHmacSha256(msgBytes, keyBytes) {
+            function sha256(words) {
+                var h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
+                    h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+                var w = new Array(64);
+                var k = [
+                    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+                    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+                    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+                    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+                    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+                    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+                    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+                    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+                ];
+                
+                for (var i = 0; i < words.length; i += 16) {
+                    var a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+                    for (var j = 0; j < 64; j++) {
+                        if (j < 16) {
+                            w[j] = words[i + j] | 0;
+                        } else {
+                            var s0 = (rightRotate(w[j - 15], 7) ^ rightRotate(w[j - 15], 18) ^ (w[j - 15] >>> 3));
+                            var s1 = (rightRotate(w[j - 2], 17) ^ rightRotate(w[j - 2], 19) ^ (w[j - 2] >>> 10));
+                            w[j] = (w[j - 16] + s0 + w[j - 7] + s1) | 0;
+                        }
+                        var ch = (e & f) ^ (~e & g);
+                        var maj = (a & b) ^ (a & c) ^ (b & c);
+                        var S1 = (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25));
+                        var S0 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22));
+                        var temp1 = (h + S1 + ch + k[j] + w[j]) | 0;
+                        var temp2 = (S0 + maj) | 0;
+                        h = g; g = f; f = e;
+                        e = (d + temp1) | 0;
+                        d = c; c = b; b = a;
+                        a = (temp1 + temp2) | 0;
+                    }
+                    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+                    h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+                }
+                return [h0, h1, h2, h3, h4, h5, h6, h7];
+            }
+            
+            function rightRotate(value, amount) {
+                return (value >>> amount) | (value << (32 - amount));
+            }
+
+            function bytesToWords(bytes) {
+                var words = [];
+                for (var i = 0; i < bytes.length; i++) {
+                    words[i >>> 2] |= (bytes[i] & 0xff) << (24 - (i % 4) * 8);
+                }
+                return words;
+            }
+
+            function wordsToBytes(words) {
+                var bytes = [];
+                for (var i = 0; i < words.length * 4; i++) {
+                    bytes.push((words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff);
+                }
+                return bytes;
+            }
+
+            function padWords(words, lengthInBytes) {
+                var bitLength = lengthInBytes * 8;
+                words[lengthInBytes >>> 2] |= 0x80 << (24 - (lengthInBytes % 4) * 8);
+                var paddedLength = (((lengthInBytes + 8) >> 6) + 1) * 16;
+                words[paddedLength - 1] = bitLength;
+                return words;
+            }
+
+            var kBytes = Array.from(keyBytes);
+            if (kBytes.length > 64) {
+                kBytes = wordsToBytes(sha256(padWords(bytesToWords(kBytes), kBytes.length)));
+            }
+            while (kBytes.length < 64) {
+                kBytes.push(0);
+            }
+
+            var ipad = [], opad = [];
+            for (var i = 0; i < 64; i++) {
+                ipad.push(kBytes[i] ^ 0x36);
+                opad.push(kBytes[i] ^ 0x5c);
+            }
+
+            var mBytes = Array.from(msgBytes);
+            var ipadMsg = ipad.concat(mBytes);
+            var hash1 = sha256(padWords(bytesToWords(ipadMsg), ipadMsg.length));
+            var opadHash1 = opad.concat(wordsToBytes(hash1));
+            var hash2 = sha256(padWords(bytesToWords(opadHash1), opadHash1.length));
+            
+            return new Uint8Array(wordsToBytes(hash2));
+        }
+
+        async function hmacSha256(message, secret) {
+            const keyBytes = base64urlDecode(secret);
+            const msgBytes = new TextEncoder().encode(message);
+
+            if (window.crypto && crypto.subtle) {
+                try {
+                    const key = await crypto.subtle.importKey(
+                        "raw",
+                        keyBytes,
+                        { name: "HMAC", hash: { name: "SHA-256" } },
+                        false,
+                        ["sign"]
+                    );
+                    const signature = await crypto.subtle.sign(
+                        "HMAC",
+                        key,
+                        msgBytes
+                    );
+                    return Array.from(new Uint8Array(signature))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join('');
+                } catch (e) {
+                    console.warn("[Crypto] Web Crypto Subtle sign failed, falling back to pure JS", e);
+                }
+            }
+            
+            const sigBytes = pureJsHmacSha256(msgBytes, keyBytes);
+            return Array.from(sigBytes)
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        let tvHmacSecret = '';
+        const recentNonces = new Set();
+        const nonceTimestamps = [];
+
+        function pruneNonces() {
+            const now = Date.now();
+            const expiry = 60000;
+            while (nonceTimestamps.length > 0 && (now - nonceTimestamps[0].t) > expiry) {
+                const expired = nonceTimestamps.shift();
+                recentNonces.delete(expired.n);
+            }
+        }
+
+        async function signMessage(payloadObj, secret) {
+            if (!secret) {
+                return JSON.stringify(payloadObj);
+            }
+            const payloadStr = JSON.stringify(payloadObj);
+            const nonce = Array.from(new Uint8Array(16))
+                .map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0'))
+                .join('');
+            const timestamp = Date.now();
+            
+            const signatureInput = `${payloadStr}|${nonce}|${timestamp}`;
+            const signatureHex = await hmacSha256(signatureInput, secret);
+            
+            const envelope = {
+                p: payloadStr,
+                s: signatureHex,
+                n: nonce,
+                t: timestamp
+            };
+            return JSON.stringify(envelope);
+        }
+
+        function showInsecureRemoteWarning(show) {
+            const btn = document.getElementById('btn-pairing');
+            if (!btn) return;
+            if (show) {
+                btn.style.border = '1px solid #ef4444';
+                btn.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                btn.style.color = '#ef4444';
+                btn.title = '⚠️ Warning: Insecure (unsigned) remote control connected!';
+                const label = btn.querySelector('span');
+                if (label) {
+                    label.innerText = 'Remote Control ⚠️';
+                }
+            } else {
+                btn.style.border = '';
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+                btn.title = 'Pair Remote Control';
+                const label = btn.querySelector('span');
+                if (label) {
+                    label.innerText = 'Remote Control';
+                }
+            }
+        }
+
+        async function verifyMessage(rawStr, secret) {
+            try {
+                const envelope = JSON.parse(rawStr);
+                if (!envelope || typeof envelope !== 'object' || !envelope.p || !envelope.s || !envelope.n || !envelope.t) {
+                    showInsecureRemoteWarning(true);
+                    return envelope;
+                }
+
+                if (!secret) {
+                    showInsecureRemoteWarning(true);
+                    return JSON.parse(envelope.p);
+                }
+
+                pruneNonces();
+                if (recentNonces.has(envelope.n)) {
+                    console.warn("[Crypto] Duplicate nonce detected: " + envelope.n);
+                    return null;
+                }
+
+                const now = Date.now();
+                if (Math.abs(now - envelope.t) > 30000) {
+                    console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + ")");
+                    return null;
+                }
+
+                const signatureInput = `${envelope.p}|${envelope.n}|${envelope.t}`;
+                const calculatedSig = await hmacSha256(signatureInput, secret);
+                if (calculatedSig !== envelope.s) {
+                    console.warn("[Crypto] Invalid signature");
+                    return null;
+                }
+
+                recentNonces.add(envelope.n);
+                nonceTimestamps.push({ n: envelope.n, t: envelope.t });
+                
+                showInsecureRemoteWarning(false);
+                return JSON.parse(envelope.p);
+            } catch (e) {
+                console.error("[Crypto] Message verification failed:", e);
+                return null;
+            }
+        }
+
+        function sha256Hex(str) {
+            function rightRotate(value, amount) {
+                return (value >>> amount) | (value << (32 - amount));
+            }
+            var h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
+                h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+            var w = new Array(64);
+            var k = [
+                0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+                0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+                0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+                0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+                0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+                0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+                0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+                0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+            ];
+            
+            var bytes = [];
+            for (var i = 0; i < str.length; i++) {
+                bytes.push(str.charCodeAt(i) & 0xff);
+            }
+            
+            var words = [];
+            for (var i = 0; i < bytes.length; i++) {
+                words[i >>> 2] |= (bytes[i] & 0xff) << (24 - (i % 4) * 8);
+            }
+            
+            var bitLength = bytes.length * 8;
+            words[bytes.length >>> 2] |= 0x80 << (24 - (bytes.length % 4) * 8);
+            var paddedLength = (((bytes.length + 8) >> 6) + 1) * 16;
+            words[paddedLength - 1] = bitLength;
+            
+            for (var i = 0; i < words.length; i += 16) {
+                var a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+                for (var j = 0; j < 64; j++) {
+                    if (j < 16) {
+                        w[j] = words[i + j] | 0;
+                    } else {
+                        var s0 = (rightRotate(w[j - 15], 7) ^ rightRotate(w[j - 15], 18) ^ (w[j - 15] >>> 3));
+                        var s1 = (rightRotate(w[j - 2], 17) ^ rightRotate(w[j - 2], 19) ^ (w[j - 2] >>> 10));
+                        w[j] = (w[j - 16] + s0 + w[j - 7] + s1) | 0;
+                    }
+                    var ch = (e & f) ^ (~e & g);
+                    var maj = (a & b) ^ (a & c) ^ (b & c);
+                    var S1 = (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25));
+                    var S0 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22));
+                    var temp1 = (h + S1 + ch + k[j] + w[j]) | 0;
+                    var temp2 = (S0 + maj) | 0;
+                    h = g; g = f; f = e;
+                    e = (d + temp1) | 0;
+                    d = c; c = b; b = a;
+                    a = (temp1 + temp2) | 0;
+                }
+                h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+                h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+            }
+            
+            var hashWords = [h0, h1, h2, h3, h4, h5, h6, h7];
+            return hashWords.map(function(val) {
+                var hex = (val >>> 0).toString(16);
+                return '00000000'.substring(hex.length) + hex;
+            }).join('');
+        }
+
+        function getMqttTopic(code) {
+            const str = "ls_salt_" + code;
+            return MQTT_TOPIC_PREFIX + sha256Hex(str);
         }
 
         // --- TV RECEIVER SIDE ---
@@ -3152,6 +3478,12 @@
             if (!tvPairingCode || tvPairingCode.length !== 6) {
                 tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
                 setCookie('pairing_code', tvPairingCode, 365);
+            }
+
+            tvHmacSecret = getCookie('pairing_hmac_secret');
+            if (!tvHmacSecret) {
+                tvHmacSecret = generateHmacSecret();
+                setCookie('pairing_hmac_secret', tvHmacSecret, 365);
             }
 
             const topic = getMqttTopic(tvPairingCode);
@@ -3177,12 +3509,12 @@
                     });
                 });
 
-                tvMqttClient.on('message', (receivedTopic, message) => {
+                tvMqttClient.on('message', async (receivedTopic, message) => {
                     if (receivedTopic === topic) {
                         try {
-                            const data = JSON.parse(message.toString());
-                            if (data.from === 'remote') {
-                                handleRemoteCommand(data);
+                            const verifiedData = await verifyMessage(message.toString(), tvHmacSecret);
+                            if (verifiedData && verifiedData.from === 'remote') {
+                                handleRemoteCommand(verifiedData);
                             }
                         } catch (e) {
                             console.error('[TV Pairing] Error parsing message:', e);
@@ -3193,9 +3525,9 @@
                         const masterTopic = getMqttTopic(tvSyncMasterCode);
                         if (receivedTopic === masterTopic) {
                             try {
-                                const data = JSON.parse(message.toString());
-                                if (data.from === 'tv' && data.type === 'sync') {
-                                    handleMasterTVSync(data);
+                                const verifiedData = await verifyMessage(message.toString(), tvSyncMasterSecret);
+                                if (verifiedData && verifiedData.from === 'tv' && verifiedData.type === 'sync') {
+                                    handleMasterTVSync(verifiedData);
                                 }
                             } catch (e) {
                                 console.error('[TV Sync] Error parsing master TV sync:', e);
@@ -3232,7 +3564,7 @@
             }
         }
 
-        function sendMqttSync() {
+        async function sendMqttSync() {
             if (tvMqttClient && tvMqttClient.connected) {
                 const topic = getMqttTopic(tvPairingCode);
                 const activeStatus = {};
@@ -3274,13 +3606,25 @@
                     activePlayersStatus: activeStatus
                 };
 
-                tvMqttClient.publish(topic, JSON.stringify(payload));
+                const signedPayload = await signMessage(payload, tvHmacSecret);
+                tvMqttClient.publish(topic, signedPayload);
                 console.log('[TV Pairing] Sent sync state');
             }
         }
 
+        let remoteCommandTimestamps = [];
+        let lastReloadTime = 0;
+
         function handleRemoteCommand(msg) {
-            console.log('[TV Pairing] Received remote command:', msg);
+            const now = Date.now();
+            remoteCommandTimestamps = remoteCommandTimestamps.filter(t => now - t < 1000);
+            if (remoteCommandTimestamps.length >= 10) {
+                console.warn("[Rate Limit] Rate limit exceeded. Dropping remote command:", msg.action);
+                return;
+            }
+            remoteCommandTimestamps.push(now);
+
+            console.log('[TV Pairing] Received remote command:', msg.action);
             
             // Dismiss pairing modal once we receive confirmation that remote is communicating
             closePairingModal();
@@ -3326,7 +3670,12 @@
                     toggleFS();
                     break;
                 case 'refreshAll':
-                    location.reload();
+                    if (Date.now() - lastReloadTime > 10000) {
+                        lastReloadTime = Date.now();
+                        location.reload();
+                    } else {
+                        console.warn("[Rate Limit] refreshAll ignored to prevent reload loop.");
+                    }
                     break;
                 case 'muteAll':
                     Object.keys(activePlayers).forEach(streamId => {
@@ -3376,7 +3725,33 @@
                     break;
                 case 'placeStream':
                     if (msg.data && msg.data.streamId && msg.data.slotIndex !== undefined) {
-                        placeStreamAtActiveIndex(msg.data.streamId, msg.data.slotIndex);
+                        placeStream(msg.data.streamId, parseInt(msg.data.slotIndex));
+                    }
+                    break;
+                case 'togglePlay':
+                    if (msg.data && msg.data.streamId) {
+                        togglePlayStream(msg.data.streamId);
+                    }
+                    break;
+                case 'toggleMute':
+                    if (msg.data && msg.data.streamId) {
+                        toggleMuteStream(msg.data.streamId);
+                    }
+                    break;
+                case 'fullscreenStream':
+                    if (msg.data && msg.data.streamId) {
+                        toggleFSStream(msg.data.streamId);
+                    }
+                    break;
+                case 'cyclePreset':
+                    cycleStreamLayoutPreset();
+                    break;
+                case 'cycleWeather':
+                    cycleWeatherView();
+                    break;
+                case 'loadPreset':
+                    if (msg.data && msg.data.name) {
+                        loadPreset(msg.data.name);
                     }
                     break;
                 case 'savePreset':
@@ -3396,11 +3771,14 @@
                     break;
                 case 'syncToMaster':
                     if (msg.data && msg.data.masterCode) {
-                        connectTVSync(msg.data.masterCode);
+                        connectTVSync(msg.data.masterCode, msg.data.masterSecret);
                     }
                     break;
                 case 'disconnectMaster':
                     disconnectTVSync();
+                    break;
+                default:
+                    console.warn("[TV Pairing] Unknown action received:", msg.action);
                     break;
             }
             sendMqttSync();
@@ -3415,10 +3793,11 @@
             // Update TV-to-TV Sync UI elements
             updateTVSyncUI();
 
-            const pairingUrl = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
+            const pairingUrlClean = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
+            const pairingUrlWithSecret = `${pairingUrlClean}#secret=${tvHmacSecret}`;
             
             const urlText = document.getElementById('pairing-url-text');
-            if (urlText) urlText.innerText = pairingUrl;
+            if (urlText) urlText.innerText = pairingUrlClean; // Keep UI display clean
 
             const codeDisplay = document.getElementById('pairing-code-display');
             if (codeDisplay) codeDisplay.innerText = tvPairingCode;
@@ -3429,7 +3808,7 @@
                 if (qrCanvas) {
                     new QRious({
                         element: qrCanvas,
-                        value: pairingUrl,
+                        value: pairingUrlWithSecret,
                         size: 200,
                         background: 'white',
                         foreground: '#030712',
@@ -3453,8 +3832,8 @@
         }
 
         function copyPairingURL() {
-            const pairingUrl = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}`;
-            navigator.clipboard.writeText(pairingUrl).then(() => {
+            const pairingUrlWithSecret = `${window.location.origin}${window.location.pathname}?pair=${tvPairingCode}#secret=${tvHmacSecret}`;
+            navigator.clipboard.writeText(pairingUrlWithSecret).then(() => {
                 alert('Pairing link copied to clipboard!');
             }).catch(err => {
                 console.error('Could not copy text: ', err);
@@ -3465,6 +3844,10 @@
             if (confirm('Regenerating pairing code will disconnect any currently paired remote controls. Continue?')) {
                 tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
                 setCookie('pairing_code', tvPairingCode, 365);
+                
+                // Rotate secret
+                tvHmacSecret = generateHmacSecret();
+                setCookie('pairing_hmac_secret', tvHmacSecret, 365);
 
                 if (tvMqttClient) {
                     try {
@@ -3477,7 +3860,7 @@
             }
         }
 
-        function connectTVSync(code) {
+        async function connectTVSync(code, secret) {
             if (!code) {
                 const inputEl = document.getElementById('tv-sync-code-input');
                 if (inputEl) code = inputEl.value.trim();
@@ -3503,14 +3886,15 @@
                 };
             }
 
-            // Set master code
+            // Set master code and secret
             tvSyncMasterCode = code;
+            tvSyncMasterSecret = secret || '';
             lastSyncedMasterJson = '';
 
             // Subscribe to the master's MQTT topic
             const masterTopic = getMqttTopic(code);
             if (tvMqttClient && tvMqttClient.connected) {
-                tvMqttClient.subscribe(masterTopic, (err) => {
+                tvMqttClient.subscribe(masterTopic, async (err) => {
                     if (!err) {
                         console.log(`[TV Sync] Successfully subscribed to master topic: ${masterTopic}`);
                         
@@ -3519,7 +3903,8 @@
                             from: 'remote',
                             action: 'ping'
                         };
-                        tvMqttClient.publish(masterTopic, JSON.stringify(pingPayload));
+                        const signedPing = await signMessage(pingPayload, tvSyncMasterSecret);
+                        tvMqttClient.publish(masterTopic, signedPing);
                     } else {
                         console.error('[TV Sync] Failed to subscribe to master topic:', err);
                     }
@@ -3677,13 +4062,26 @@
             if (currentCode) {
                 const codeStr = String(currentCode).trim();
                 if (codeStr !== '') {
-                    const exists = pairedDisplays.some(d => d.code === codeStr);
-                    if (!exists) {
+                    // Extract secret from fragment
+                    let secret = '';
+                    if (window.location.hash) {
+                        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                        secret = hashParams.get('secret') || '';
+                    }
+                    const existingIndex = pairedDisplays.findIndex(d => d.code === codeStr);
+                    if (existingIndex === -1) {
                         pairedDisplays.push({
                             name: 'Display ' + codeStr,
-                            code: codeStr
+                            code: codeStr,
+                            hmacKey: secret
                         });
                         savePairedDisplays();
+                    } else if (secret) {
+                        // Update secret if a new one is provided in URL
+                        if (pairedDisplays[existingIndex].hmacKey !== secret) {
+                            pairedDisplays[existingIndex].hmacKey = secret;
+                            savePairedDisplays();
+                        }
                     }
                 }
             }
@@ -3704,8 +4102,16 @@
             const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
             const displayName = currentDisplay ? currentDisplay.name : (remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED');
             
+            let badgeStyle = 'background: rgba(6, 182, 212, 0.15); color: var(--accent); border-color: var(--border-color);';
+            let warningText = '';
+            if (currentDisplay && !currentDisplay.hmacKey) {
+                badgeStyle = 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.3);';
+                warningText = ' <span style="font-size: 0.75rem;" title="Insecure connection (no signature)">⚠️</span>';
+            }
+            
+            container.style.cssText = `font-family: inherit; font-size: 0.8rem; font-weight: 700; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none; transition: all 0.2s; ${badgeStyle}`;
             // Render a beautiful pill that prompts the switcher popup when clicked
-            container.innerHTML = `📺 <span style="margin-left: 2px;">${escapeHtml(displayName)}</span> <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
+            container.innerHTML = `📺 <span style="margin-left: 2px;">${escapeHtml(displayName)}</span>${warningText} <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
         }
 
         function openRemoteSwitcherPopup() {
@@ -3734,7 +4140,7 @@
                         item.setAttribute('onclick', `selectDisplayFromSwitcher('${jsEscCode}')`);
                         
                         const titleHtml = `<div class="remote-item-info">
-                            <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escapeHtml(d.name)}</div>
+                            <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escapeHtml(d.name)} ${d.hmacKey ? '' : '<span style="color:#ef4444;" title="Insecure Connection">⚠️</span>'}</div>
                             <div class="remote-item-desc">Code: ${escapeHtml(d.code)}</div>
                         </div>`;
                         
@@ -3788,7 +4194,8 @@
 
             pairedDisplays.push({
                 name: 'Display ' + code,
-                code: code
+                code: code,
+                hmacKey: ''
             });
             savePairedDisplays();
 
@@ -3856,7 +4263,7 @@
             masterSelect.innerHTML += '<option value="custom">-- Enter custom code... --</option>';
         }
 
-        function remoteTriggerTVSync() {
+        async function remoteTriggerTVSync() {
             const slaveSelect = document.getElementById('remote-sync-slave-select');
             const masterSelect = document.getElementById('remote-sync-master-select');
             if (!slaveSelect || !masterSelect) return;
@@ -3888,20 +4295,26 @@
                 return;
             }
 
+            const masterObj = pairedDisplays.find(d => d.code === masterCode);
+            const masterSecret = masterObj ? (masterObj.hmacKey || '') : '';
+
             const payload = {
                 from: 'remote',
                 action: 'syncToMaster',
                 data: {
-                    masterCode: masterCode
+                    masterCode: masterCode,
+                    masterSecret: masterSecret
                 }
             };
 
+            const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+            const slaveSecret = slaveObj ? (slaveObj.hmacKey || '') : '';
+            const signedPayload = await signMessage(payload, slaveSecret);
+
             const slaveTopic = getMqttTopic(slaveCode);
             if (remoteMqttClient && remoteMqttClient.connected) {
-                remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
-                const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+                remoteMqttClient.publish(slaveTopic, signedPayload);
                 const slaveName = slaveObj ? slaveObj.name : slaveCode;
-                const masterObj = pairedDisplays.find(d => d.code === masterCode);
                 const masterName = masterObj ? masterObj.name : masterCode;
                 alert(`Command sent: telling Display "${slaveName}" to sync with Master Display "${masterName}".`);
             } else {
@@ -3909,7 +4322,7 @@
             }
         }
 
-        function remoteTriggerTVDisconnect() {
+        async function remoteTriggerTVDisconnect() {
             const slaveSelect = document.getElementById('remote-sync-slave-select');
             if (!slaveSelect) return;
             
@@ -3924,10 +4337,13 @@
                 action: 'disconnectMaster'
             };
 
+            const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+            const slaveSecret = slaveObj ? (slaveObj.hmacKey || '') : '';
+            const signedPayload = await signMessage(payload, slaveSecret);
+
             const slaveTopic = getMqttTopic(slaveCode);
             if (remoteMqttClient && remoteMqttClient.connected) {
-                remoteMqttClient.publish(slaveTopic, JSON.stringify(payload));
-                const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+                remoteMqttClient.publish(slaveTopic, signedPayload);
                 const slaveName = slaveObj ? slaveObj.name : slaveCode;
                 alert(`Command sent: telling Display "${slaveName}" to disconnect from master sync.`);
             } else {
@@ -4042,12 +4458,14 @@
                     });
                 });
 
-                remoteMqttClient.on('message', (receivedTopic, message) => {
+                remoteMqttClient.on('message', async (receivedTopic, message) => {
                     if (receivedTopic === topic) {
                         try {
-                            const data = JSON.parse(message.toString());
-                            if (data.from === 'tv' && data.type === 'sync') {
-                                handleRemoteSync(data);
+                            const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+                            const secret = currentDisplay ? (currentDisplay.hmacKey || '') : '';
+                            const verifiedData = await verifyMessage(message.toString(), secret);
+                            if (verifiedData && verifiedData.from === 'tv' && verifiedData.type === 'sync') {
+                                handleRemoteSync(verifiedData);
                             }
                         } catch (e) {
                             console.error('[Mobile Remote] Error parsing message:', e);
@@ -4288,15 +4706,19 @@
             if (targetContent) targetContent.classList.add('active');
         }
 
-        function sendRemoteCommand(action, data = {}) {
+        async function sendRemoteCommand(action, data = {}) {
             if (remoteMqttClient && remoteMqttClient.connected) {
                 const topic = getMqttTopic(remotePairCode);
+                const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+                const secret = currentDisplay ? (currentDisplay.hmacKey || '') : '';
+                
                 const payload = {
                     from: 'remote',
                     action: action,
                     data: data
                 };
-                remoteMqttClient.publish(topic, JSON.stringify(payload));
+                const signedPayload = await signMessage(payload, secret);
+                remoteMqttClient.publish(topic, signedPayload);
                 console.log('[Mobile Remote] Sent command:', action);
             }
         }
