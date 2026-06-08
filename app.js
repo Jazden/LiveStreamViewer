@@ -3334,24 +3334,80 @@
 
         function showInsecureRemoteWarning(show) {
             const btn = document.getElementById('btn-pairing');
-            if (!btn) return;
+            if (btn) {
+                if (show) {
+                    btn.style.border = '1px solid #ef4444';
+                    btn.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                    btn.style.color = '#ef4444';
+                    btn.title = '⚠️ Warning: Insecure (unsigned) remote control connected!';
+                    const label = btn.querySelector('span');
+                    if (label) {
+                        label.innerText = 'Remote Control ⚠️';
+                    }
+                } else {
+                    btn.style.border = '';
+                    btn.style.backgroundColor = '';
+                    btn.style.color = '';
+                    btn.title = 'Pair Remote Control';
+                    const label = btn.querySelector('span');
+                    if (label) {
+                        label.innerText = 'Remote Control';
+                    }
+                }
+            }
+
+            // Create/manage a floating warning toast banner on TV screen
+            let toast = document.getElementById('insecure-remote-toast-warning');
             if (show) {
-                btn.style.border = '1px solid #ef4444';
-                btn.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                btn.style.color = '#ef4444';
-                btn.title = '⚠️ Warning: Insecure (unsigned) remote control connected!';
-                const label = btn.querySelector('span');
-                if (label) {
-                    label.innerText = 'Remote Control ⚠️';
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = 'insecure-remote-toast-warning';
+                    toast.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        background: rgba(239, 68, 68, 0.95);
+                        color: white;
+                        padding: 16px 24px;
+                        border-radius: 12px;
+                        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+                        z-index: 99999;
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        font-family: inherit;
+                        font-size: 0.95rem;
+                        font-weight: 600;
+                        backdrop-filter: blur(8px);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        animation: slideIn 0.3s ease-out;
+                    `;
+                    toast.innerHTML = `
+                        <span style="font-size: 1.25rem;">⚠️</span>
+                        <div style="flex: 1; text-align: left;">
+                            <div style="font-weight: 700; margin-bottom: 2px;">Insecure Connection</div>
+                            <div style="font-size: 0.8rem; font-weight: 400; opacity: 0.9;">An unauthenticated remote is sending commands. Use the QR code to connect securely.</div>
+                        </div>
+                        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; padding: 0 4px; opacity: 0.8; font-weight: 700;">✕</button>
+                    `;
+                    
+                    if (!document.getElementById('toast-animation-styles')) {
+                        const style = document.createElement('style');
+                        style.id = 'toast-animation-styles';
+                        style.textContent = `
+                            @keyframes slideIn {
+                                from { transform: translateY(-20px); opacity: 0; }
+                                to { transform: translateY(0); opacity: 1; }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+
+                    document.body.appendChild(toast);
                 }
             } else {
-                btn.style.border = '';
-                btn.style.backgroundColor = '';
-                btn.style.color = '';
-                btn.title = 'Pair Remote Control';
-                const label = btn.querySelector('span');
-                if (label) {
-                    label.innerText = 'Remote Control';
+                if (toast) {
+                    toast.remove();
                 }
             }
         }
@@ -3391,8 +3447,11 @@
                 recentNonces.add(envelope.n);
                 nonceTimestamps.push({ n: envelope.n, t: envelope.t });
                 
-                showInsecureRemoteWarning(false);
-                return JSON.parse(envelope.p);
+                const parsedPayload = JSON.parse(envelope.p);
+                if (parsedPayload && parsedPayload.from === 'remote') {
+                    showInsecureRemoteWarning(false);
+                }
+                return parsedPayload;
             } catch (e) {
                 console.error("[Crypto] Message verification failed:", e);
                 return null;
