@@ -6,17 +6,17 @@ This document tracks all identified performance, architectural, and design issue
 
 ## High Severity Issues
 
-### [ ] Twitch Player Memory & Audio Leak
+### [x] Twitch Player Memory & Audio Leak
 - **Category**: Performance / Quality (Bug Tester)
 - **Description**: Deactivating streams or shifting layout grids fails to properly destroy/clean up existing Twitch player instances. As a result, iframe processes remain active, stream audio continues playing invisibly in the background, and browser memory leaks accumulate over time.
 - **Proposed Solution**: Maintain a registry of active Twitch SDK player instances and call `.destroy()` or clear the target element's content cleanly whenever a layout shifts or a stream is closed.
-- **Notes**: 
+- **Notes**: Resolved by implementing `destroyPlayer(streamId)` which explicitly pauses Twitch audio, destroys the SDK instance if supported, navigates child iframes to `about:blank`, clears the container, and disposes weather animations.
 
-### [ ] Redundant & Heavy Player Re-initialization
+### [x] Redundant & Heavy Player Re-initialization
 - **Category**: Performance (Bug Tester)
 - **Description**: Every layout modification or channel toggle triggers a full teardown and rebuild of every iframe player from scratch. This creates high CPU/GPU spikes, increases bandwidth waste, and causes irritating player loading/buffering delays.
 - **Proposed Solution**: Reuse existing iframe containers and player objects where possible, adjusting CSS properties (e.g., width, height, visibility) instead of reconstructing DOM subtrees.
-- **Notes**: 
+- **Notes**: Resolved via smart player reconciliation in `renderActiveStreams()`. Active cards and players are preserved across layout changes and stream toggles without re-buffering or re-creating iframes. Only streams removed from the active layout are destroyed, and only new streams are initialized.
 
 ### [ ] Monolithic File Bloat (`app.js`)
 - **Category**: Architecture (Project Architect)
@@ -28,11 +28,11 @@ This document tracks all identified performance, architectural, and design issue
 
 ## Medium Severity Issues
 
-### [ ] Keystroke-Rate Network Storms
+### [x] Keystroke-Rate Network Storms
 - **Category**: Performance (Bug Tester)
 - **Description**: Typing rapidly in the channel search filters triggers simultaneous HTTP HEAD/GET validation requests to verify the status of streams on every keystroke, resulting in network congestion.
 - **Proposed Solution**: Introduce a debounce mechanism (e.g., 300ms delay) on the search input listener before executing status checks.
-- **Notes**: 
+- **Notes**: Resolved by introducing a 250ms `debounce()` helper on search input filtering and removing the `setTimeout(checkAllStreamsStatus, 100)` invocation from the sidebar render loop.
 
 ### [ ] Multi-Role Code Duplication & HTML Bloat (`index.html`)
 - **Category**: Architecture (Project Architect)
@@ -68,17 +68,17 @@ This document tracks all identified performance, architectural, and design issue
 - **Proposed Solution**: Extract inline styling to `style.css` and use CSS Custom Properties (`--primary-color`, `--bg-color`) inside the `:root` pseudo-class.
 - **Notes**: 
 
-### [ ] Leaked Timer Intervals
+### [x] Leaked Timer Intervals
 - **Category**: Performance (Bug Tester)
 - **Description**: Several polling timers waiting for YouTube/Twitch players to load are not cancelled if the host container is closed or removed midway.
 - **Proposed Solution**: Keep track of all timer IDs and call `clearInterval` or `clearTimeout` in a unified cleanup function.
-- **Notes**: 
+- **Notes**: Resolved by tracking polling timers in `pendingPlayerTimers` map and cancelling them immediately when a player is destroyed or re-rendered.
 
-### [ ] Redundant Code Duplication
+### [x] Redundant Code Duplication
 - **Category**: Clean Code (Bug Tester)
 - **Description**: The helper utility `getYoutubeId` is defined twice within `app.js`.
 - **Proposed Solution**: Delete the duplicate declaration.
-- **Notes**: 
+- **Notes**: Resolved by consolidating to canonical `getYouTubeId(url)` with backward-compatible alias. 
 
 ---
 

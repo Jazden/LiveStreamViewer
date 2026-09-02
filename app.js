@@ -42,6 +42,16 @@
         let cinemaActiveStreamId = null;
         let cycleInterval = null;
         let dragSourceId = null;
+        let pendingPlayerTimers = {};
+
+        // Utility: Debounce function calls to prevent rapid repeated executions
+        function debounce(func, wait = 250) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
 
         // Dynamic API script loading triggers
         let youtubeAPIReady = false;
@@ -885,8 +895,12 @@
             setCookie('sidebar_collapsed', isCollapsed ? '1' : '0', 365);
         }
 
-        function filterSidebarStreams() {
+        const debouncedRenderSidebar = debounce(() => {
             renderSidebarStreams();
+        }, 250);
+
+        function filterSidebarStreams() {
+            debouncedRenderSidebar();
         }
 
         function renderSidebarStreams() {
@@ -957,21 +971,18 @@
                     </div>
                 `;
             }
-            
-            // Queue status verification for newly rendered list items
-            setTimeout(checkAllStreamsStatus, 100);
         }
 
-        // Render layout logic
+        // Render layout logic with smart player reconciliation
         function renderActiveStreams() {
-            clearAllPlayers();
-            
             const container = document.getElementById('grid-container');
-            container.innerHTML = '';
+            if (!container) return;
             
             const activeStreams = appState.streams.filter(s => s.active);
             
             if (activeStreams.length === 0) {
+                clearAllPlayers();
+                container.className = '';
                 container.innerHTML = `
                     <div class="no-streams">
                         <p>No active streams selected. Open configuration to set up and enable feeds.</p>
@@ -981,33 +992,101 @@
                 return;
             }
             
-            container.className = '';
+            // Remove no-streams placeholder if present
+            const noStreamsEl = container.querySelector('.no-streams');
+            if (noStreamsEl) noStreamsEl.remove();
             
             // Get layout capacity and cull streams that exceed it
             const capacity = LAYOUT_CAPACITIES[appState.layout] || 4;
-            const displayStreams = activeStreams.slice(0, capacity);
+            let displayStreams = [];
             
             if (appState.layout === 'cinema') {
-                container.classList.add('layout-cinema');
-                
-                let activeStream = displayStreams.find(s => s.id === cinemaActiveStreamId);
+                let activeStream = activeStreams.find(s => s.id === cinemaActiveStreamId);
                 if (!activeStream) {
-                    activeStream = displayStreams[0];
+                    activeStream = activeStreams[0];
                     cinemaActiveStreamId = activeStream.id;
                 }
+                displayStreams = [activeStream];
+            } else {
+                displayStreams = activeStreams.slice(0, capacity);
+            }
+            
+            const displayIds = new Set(displayStreams.map(s => s.id));
+            
+            // 1. Cull Phase: Destroy players & timers for streams that are no longer displayed
+            Object.keys(activePlayers).forEach(id => {
+                if (!displayIds.has(id)) {
+                    destroyPlayer(id);
+                }
+            });
+            Object.keys(pendingPlayerTimers).forEach(id => {
+                if (!displayIds.has(id)) {
+                    clearInterval(pendingPlayerTimers[id]);
+                    clearTimeout(pendingPlayerTimers[id]);
+                    delete pendingPlayerTimers[id];
+                }
+            });
+            
+            // Remove any orphan card elements from DOM
+            const existingCards = container.querySelectorAll('.stream-card');
+            existingCards.forEach(card => {
+                const id = card.id.replace('card-', '');
+                if (!displayIds.has(id)) {
+                    card.remove();
+                }
+            });
+            
+            // 2. Layout class update
+            const hasSelector = appState.layout === 'cinema' && activeStreams.length > 1;
+            const targetLayoutClass = (appState.layout === 'cinema' ? 'layout-cinema' : appState.layout) + (hasSelector ? ' has-selector' : '');
+            container.className = targetLayoutClass;
+            
+            // 3. Retain / Mount Phase: Preserve already running players, create only new ones
+            displayStreams.forEach((s, targetIdx) => {
+                let card = document.getElementById(`card-${s.id}`);
+                const currentP = activePlayers[s.id];
+                const needsReinit = currentP && (currentP.url !== s.url || currentP.type !== s.type);
                 
-                renderStreamCard(container, activeStream);
+                if (needsReinit) {
+                    destroyPlayer(s.id);
+                    card = null;
+                }
                 
-                // Cinema view streams navigation bar
-                if (activeStreams.length > 1) {
-                    container.classList.add('has-selector');
-                    const selectorDiv = document.createElement('div');
+                if (!card) {
+                    // Create new card and initialize player
+                    renderStreamCard(container, s);
+                    const playerContainer = document.getElementById(`player-container-${s.id}`);
+                    if (playerContainer) {
+                        initializePlayer(s);
+                    }
+                } else {
+                    // Existing card: keep in place if already at target position to prevent iframe re-parent reload
+                    const currentCards = Array.from(container.children).filter(el => el.classList.contains('stream-card'));
+                    if (currentCards.indexOf(card) !== targetIdx) {
+                        container.appendChild(card);
+                    }
+                }
+            });
+            
+            // 4. Cinema navigation selector handling
+            let selectorDiv = container.querySelector('.cinema-selector');
+            if (hasSelector) {
+                if (!selectorDiv) {
+                    selectorDiv = document.createElement('div');
                     selectorDiv.className = 'cinema-selector';
                     selectorDiv.innerHTML = '<h4>Active Channels Selector</h4>';
-                    
                     const btnGroup = document.createElement('div');
                     btnGroup.className = 'cinema-selector-group';
-                    
+                    selectorDiv.appendChild(btnGroup);
+                    container.appendChild(selectorDiv);
+                } else {
+                    // Ensure selector is positioned after stream cards
+                    container.appendChild(selectorDiv);
+                }
+                
+                const btnGroup = selectorDiv.querySelector('.cinema-selector-group');
+                if (btnGroup) {
+                    btnGroup.innerHTML = '';
                     activeStreams.forEach(s => {
                         const btn = document.createElement('button');
                         btn.className = `btn btn-sm ${s.id === cinemaActiveStreamId ? 'active' : ''}`;
@@ -1018,23 +1097,10 @@
                         };
                         btnGroup.appendChild(btn);
                     });
-                    selectorDiv.appendChild(btnGroup);
-                    container.appendChild(selectorDiv);
                 }
-            } else {
-                container.classList.add(appState.layout);
-                
-                displayStreams.forEach(s => {
-                    renderStreamCard(container, s);
-                });
+            } else if (selectorDiv) {
+                selectorDiv.remove();
             }
-            
-            // Instantiate players once inside DOM
-            displayStreams.forEach(s => {
-                const playerContainer = document.getElementById(`player-container-${s.id}`);
-                if (!playerContainer) return; // not rendered in current view layout
-                initializePlayer(s);
-            });
         }
 
         // Render card structure in DOM
@@ -1198,6 +1264,7 @@
                 videoEl.muted = true;
                 
                 const container = document.getElementById(`player-container-${stream.id}`);
+                if (!container) return;
                 container.appendChild(videoEl);
                 
                 try {
@@ -1213,6 +1280,7 @@
                     activePlayers[stream.id] = {
                         type: 'hls',
                         instance: player,
+                        url: stream.url,
                         muted: true,
                         volume: 50
                     };
@@ -1230,59 +1298,69 @@
                     });
                 } catch (e) {
                     console.error('Error initializing HLS player: ', e);
-                    document.getElementById(`player-container-${stream.id}`).innerHTML = 
-                        `<div class="player-error">HLS Stream Load Failed</div>`;
+                    const c = document.getElementById(`player-container-${stream.id}`);
+                    if (c) {
+                        c.innerHTML = `<div class="player-error">HLS Stream Load Failed</div>`;
+                    }
                 }
             } 
             else if (stream.type === 'youtube') {
                 const ytId = getYouTubeId(stream.url);
                 if (!ytId) {
-                    document.getElementById(`player-container-${stream.id}`).innerHTML = 
-                        `<div class="player-error">Invalid YouTube URL</div>`;
+                    const c = document.getElementById(`player-container-${stream.id}`);
+                    if (c) c.innerHTML = `<div class="player-error">Invalid YouTube URL</div>`;
                     return;
                 }
                 
                 const playerDiv = document.createElement('div');
                 playerDiv.id = 'yt-' + stream.id;
                 const container = document.getElementById(`player-container-${stream.id}`);
+                if (!container) return;
                 container.appendChild(playerDiv);
                 
                 let attempts = 0;
                 const interval = setInterval(() => {
                     attempts++;
                     if (window.YT && window.YT.Player) {
-                        createYTPlayer(stream, playerDiv.id, ytId);
                         clearInterval(interval);
+                        delete pendingPlayerTimers[stream.id];
+                        createYTPlayer(stream, playerDiv.id, ytId);
                     } else if (attempts > 50) {
                         clearInterval(interval);
+                        delete pendingPlayerTimers[stream.id];
                         playerDiv.innerText = "Failed to load YouTube Iframe API";
                     }
                 }, 100);
+                pendingPlayerTimers[stream.id] = interval;
             } 
             else if (stream.type === 'twitch') {
                 const channel = getTwitchChannel(stream.url);
                 if (!channel) {
-                    document.getElementById(`player-container-${stream.id}`).innerHTML = 
-                        `<div class="player-error">Invalid Twitch URL</div>`;
+                    const c = document.getElementById(`player-container-${stream.id}`);
+                    if (c) c.innerHTML = `<div class="player-error">Invalid Twitch URL</div>`;
                     return;
                 }
                 
                 const playerDiv = document.createElement('div');
                 playerDiv.id = 'twitch-' + stream.id;
                 const container = document.getElementById(`player-container-${stream.id}`);
+                if (!container) return;
                 container.appendChild(playerDiv);
                 
                 let attempts = 0;
                 const interval = setInterval(() => {
                     attempts++;
                     if (window.Twitch && window.Twitch.Player) {
-                        createTwitchPlayer(stream, playerDiv.id, channel);
                         clearInterval(interval);
+                        delete pendingPlayerTimers[stream.id];
+                        createTwitchPlayer(stream, playerDiv.id, channel);
                     } else if (attempts > 50) {
                         clearInterval(interval);
+                        delete pendingPlayerTimers[stream.id];
                         playerDiv.innerText = "Failed to load Twitch API";
                     }
                 }, 100);
+                pendingPlayerTimers[stream.id] = interval;
             } 
             else if (stream.type === 'iframe') {
                 const iframe = document.createElement('iframe');
@@ -1290,20 +1368,36 @@
                 iframe.setAttribute('allowfullscreen', '');
                 iframe.setAttribute('allow', 'autoplay; encrypted-media');
                 const container = document.getElementById(`player-container-${stream.id}`);
+                if (!container) return;
                 container.appendChild(iframe);
                 
                 activePlayers[stream.id] = {
                     type: 'iframe',
                     instance: iframe,
+                    url: stream.url,
                     muted: true,
                     volume: 50
                 };
             }
             else if (stream.type === 'weather') {
                 initializeWeatherCam(stream);
+                activePlayers[stream.id] = {
+                    type: 'weather',
+                    instance: null,
+                    url: stream.url,
+                    muted: true,
+                    volume: 50
+                };
             }
             else if (stream.type === 'notes') {
                 initializeNotesWidget(stream);
+                activePlayers[stream.id] = {
+                    type: 'notes',
+                    instance: null,
+                    url: stream.url,
+                    muted: true,
+                    volume: 50
+                };
             }
         }
 
@@ -1369,6 +1463,7 @@
                 activePlayers[stream.id] = {
                     type: 'youtube',
                     instance: player,
+                    url: stream.url,
                     muted: true,
                     volume: 50
                 };
@@ -1393,6 +1488,7 @@
                 activePlayers[stream.id] = {
                     type: 'twitch',
                     instance: player,
+                    url: stream.url,
                     muted: true,
                     volume: 50
                 };
@@ -1417,27 +1513,89 @@
             }
         }
 
-        // Clean up resources
-        function clearAllPlayers() {
-            for (const id in activePlayers) {
-                const pObj = activePlayers[id];
-                if (!pObj) continue;
+        // Clean up a single stream player, timers, and its associated DOM
+        function destroyPlayer(streamId) {
+            if (!streamId) return;
+
+            // 1. Cancel pending initialization timer if active
+            if (pendingPlayerTimers[streamId]) {
+                clearInterval(pendingPlayerTimers[streamId]);
+                clearTimeout(pendingPlayerTimers[streamId]);
+                delete pendingPlayerTimers[streamId];
+            }
+
+            // 2. Teardown active player instance
+            const pObj = activePlayers[streamId];
+            if (pObj) {
                 try {
                     if (pObj.type === 'hls' && pObj.instance) {
                         pObj.instance.dispose();
                     } else if (pObj.type === 'youtube' && pObj.instance && typeof pObj.instance.destroy === 'function') {
                         pObj.instance.destroy();
+                    } else if (pObj.type === 'twitch' && pObj.instance) {
+                        if (typeof pObj.instance.pause === 'function') {
+                            try { pObj.instance.pause(); } catch (e) {}
+                        }
+                        if (typeof pObj.instance.destroy === 'function') {
+                            try { pObj.instance.destroy(); } catch (e) {}
+                        }
+                    } else if (pObj.type === 'iframe' && pObj.instance) {
+                        try { pObj.instance.src = 'about:blank'; } catch (e) {}
                     }
                 } catch (e) {
-                    console.error('Error disposing player instance for ID ' + id, e);
+                    console.error('Error disposing player instance for ID ' + streamId, e);
                 }
+                delete activePlayers[streamId];
             }
+
+            // 3. Stop weather animation if active
+            if (activeWeatherAnimations[streamId]) {
+                try {
+                    if (typeof activeWeatherAnimations[streamId].stop === 'function') {
+                        activeWeatherAnimations[streamId].stop();
+                    }
+                } catch (e) {}
+                delete activeWeatherAnimations[streamId];
+            }
+
+            // 4. Blank and clear any child iframes inside the player container
+            const playerContainer = document.getElementById(`player-container-${streamId}`);
+            if (playerContainer) {
+                playerContainer.querySelectorAll('iframe').forEach(ifr => {
+                    try { ifr.src = 'about:blank'; } catch (e) {}
+                });
+                playerContainer.innerHTML = '';
+            }
+
+            // 5. Remove card from DOM
+            const card = document.getElementById(`card-${streamId}`);
+            if (card) {
+                card.remove();
+            }
+        }
+
+        // Clean up all resources
+        function clearAllPlayers() {
+            // Cancel all pending player timers
+            for (const id in pendingPlayerTimers) {
+                try {
+                    clearInterval(pendingPlayerTimers[id]);
+                    clearTimeout(pendingPlayerTimers[id]);
+                } catch (e) {}
+                delete pendingPlayerTimers[id];
+            }
+
+            // Destroy all active player instances
+            const idsToDestroy = Object.keys(activePlayers);
+            idsToDestroy.forEach(id => {
+                destroyPlayer(id);
+            });
             activePlayers = {};
-            
-            // Clean up weather animation loops
+
+            // Clean up any remaining weather animation loops
             for (const id in activeWeatherAnimations) {
                 if (activeWeatherAnimations[id] && typeof activeWeatherAnimations[id].stop === 'function') {
-                    activeWeatherAnimations[id].stop();
+                    try { activeWeatherAnimations[id].stop(); } catch (e) {}
                 }
             }
             activeWeatherAnimations = {};
@@ -2794,17 +2952,8 @@
 
         let activePreviewPlayer = null;
 
-        function getYoutubeId(url) {
-            let videoId = '';
-            if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-                const match = url.match(regExp);
-                if (match && match[2].length === 11) {
-                    videoId = match[2];
-                }
-            }
-            return videoId;
-        }
+        // Alias canonical getYouTubeId for backwards compatibility
+        const getYoutubeId = getYouTubeId;
 
         function previewDirectoryStream(item) {
             const modal = document.getElementById('preview-modal');
@@ -3105,8 +3254,12 @@
             renderPublicStreamBrowser();
         }
 
-        function filterPublicStreams() {
+        const debouncedRenderPublicBrowser = debounce(() => {
             renderPublicStreamBrowser();
+        }, 250);
+
+        function filterPublicStreams() {
+            debouncedRenderPublicBrowser();
         }
 
         function addDirectoryStream(name, url, type, category) {
@@ -5183,6 +5336,8 @@
         window.handleRemoteAddStream = handleRemoteAddStream;
         window.sendMqttSync = sendMqttSync;
         window.connectWithInputCode = connectWithInputCode;
+        window.destroyPlayer = destroyPlayer;
+        window.clearAllPlayers = clearAllPlayers;
 
         window.handleRemoteDragStart = handleRemoteDragStart;
         window.handleRemoteDragOver = handleRemoteDragOver;
