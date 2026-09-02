@@ -26,7 +26,8 @@
             layout: "cinema",
             streams: [],
             rotatorMode: "streams",
-            rotatorInterval: 30
+            rotatorInterval: 30,
+            keepStreamsAlive: false
         };
 
         // Active Player instances reference
@@ -151,7 +152,8 @@
             // Save rotator configuration
             setCookie('rotator_config', JSON.stringify({
                 mode: appState.rotatorMode,
-                interval: appState.rotatorInterval
+                interval: appState.rotatorInterval,
+                keepAlive: appState.keepStreamsAlive
             }), 365);
 
             if (window.sendMqttSync) {
@@ -182,6 +184,7 @@
                     const rot = JSON.parse(savedRotator);
                     appState.rotatorMode = rot.mode || 'streams';
                     appState.rotatorInterval = rot.interval || 30;
+                    appState.keepStreamsAlive = !!rot.keepAlive;
                 } catch (e) {}
             }
             
@@ -973,7 +976,7 @@
             }
         }
 
-        // Render layout logic with smart player reconciliation
+        // Render layout logic with smart player reconciliation and background keep-alive
         function renderActiveStreams() {
             const container = document.getElementById('grid-container');
             if (!container) return;
@@ -1012,36 +1015,82 @@
             }
             
             const displayIds = new Set(displayStreams.map(s => s.id));
-            
-            // 1. Cull Phase: Destroy players & timers for streams that are no longer displayed
-            Object.keys(activePlayers).forEach(id => {
-                if (!displayIds.has(id)) {
-                    destroyPlayer(id);
-                }
-            });
-            Object.keys(pendingPlayerTimers).forEach(id => {
-                if (!displayIds.has(id)) {
-                    clearInterval(pendingPlayerTimers[id]);
-                    clearTimeout(pendingPlayerTimers[id]);
-                    delete pendingPlayerTimers[id];
-                }
-            });
-            
-            // Remove any orphan card elements from DOM
-            const existingCards = container.querySelectorAll('.stream-card');
-            existingCards.forEach(card => {
-                const id = card.id.replace('card-', '');
-                if (!displayIds.has(id)) {
-                    card.remove();
-                }
-            });
+            const allStreamIds = new Set(appState.streams.map(s => s.id));
+
+            // 1. Cull / Hide Phase
+            if (appState.keepStreamsAlive) {
+                // Keep players alive in DOM; hide cards not in displayStreams and mute video audio
+                Object.keys(activePlayers).forEach(id => {
+                    // If stream was completely deleted from library, destroy it
+                    if (!allStreamIds.has(id)) {
+                        destroyPlayer(id);
+                        return;
+                    }
+
+                    const card = document.getElementById(`card-${id}`);
+                    if (!displayIds.has(id)) {
+                        if (card) card.classList.add('stream-hidden');
+                        
+                        // Mute audio for hidden players so they don't play sound in background
+                        const pObj = activePlayers[id];
+                        if (pObj) {
+                            if (pObj.type === 'hls' && pObj.instance && typeof pObj.instance.muted === 'function') {
+                                if (pObj._wasMuted === undefined) pObj._wasMuted = pObj.instance.muted();
+                                pObj.instance.muted(true);
+                            } else if (pObj.type === 'youtube' && pObj.instance && typeof pObj.instance.mute === 'function') {
+                                if (pObj._wasMuted === undefined && typeof pObj.instance.isMuted === 'function') {
+                                    pObj._wasMuted = pObj.instance.isMuted();
+                                }
+                                pObj.instance.mute();
+                            } else if (pObj.type === 'twitch' && pObj.instance && typeof pObj.instance.setMuted === 'function') {
+                                if (pObj._wasMuted === undefined && typeof pObj.instance.isMuted === 'function') {
+                                    pObj._wasMuted = pObj.instance.isMuted();
+                                }
+                                pObj.instance.setMuted(true);
+                            }
+                        }
+                    }
+                });
+
+                // Remove cards from DOM for streams completely removed from library
+                const existingCards = container.querySelectorAll('.stream-card');
+                existingCards.forEach(card => {
+                    const id = card.id.replace('card-', '');
+                    if (!allStreamIds.has(id)) {
+                        card.remove();
+                    }
+                });
+            } else {
+                // Standard mode: Destroy players & timers for streams that are no longer displayed
+                Object.keys(activePlayers).forEach(id => {
+                    if (!displayIds.has(id)) {
+                        destroyPlayer(id);
+                    }
+                });
+                Object.keys(pendingPlayerTimers).forEach(id => {
+                    if (!displayIds.has(id)) {
+                        clearInterval(pendingPlayerTimers[id]);
+                        clearTimeout(pendingPlayerTimers[id]);
+                        delete pendingPlayerTimers[id];
+                    }
+                });
+                
+                // Remove any orphan card elements from DOM
+                const existingCards = container.querySelectorAll('.stream-card');
+                existingCards.forEach(card => {
+                    const id = card.id.replace('card-', '');
+                    if (!displayIds.has(id)) {
+                        card.remove();
+                    }
+                });
+            }
             
             // 2. Layout class update
             const hasSelector = appState.layout === 'cinema' && activeStreams.length > 1;
             const targetLayoutClass = (appState.layout === 'cinema' ? 'layout-cinema' : appState.layout) + (hasSelector ? ' has-selector' : '');
             container.className = targetLayoutClass;
             
-            // 3. Retain / Mount Phase: Preserve already running players, create only new ones
+            // 3. Retain / Mount / Unhide Phase: Preserve already running players, unhide background ones, create new ones
             displayStreams.forEach((s, targetIdx) => {
                 let card = document.getElementById(`card-${s.id}`);
                 const currentP = activePlayers[s.id];
@@ -1060,9 +1109,24 @@
                         initializePlayer(s);
                     }
                 } else {
-                    // Existing card: keep in place if already at target position to prevent iframe re-parent reload
-                    const currentCards = Array.from(container.children).filter(el => el.classList.contains('stream-card'));
-                    if (currentCards.indexOf(card) !== targetIdx) {
+                    // Unhide card if it was hidden in background
+                    card.classList.remove('stream-hidden');
+
+                    // Restore audio mute state if it was unmuted before hiding
+                    if (currentP && currentP._wasMuted === false) {
+                        if (currentP.type === 'hls' && currentP.instance && typeof currentP.instance.muted === 'function') {
+                            currentP.instance.muted(false);
+                        } else if (currentP.type === 'youtube' && currentP.instance && typeof currentP.instance.unMute === 'function') {
+                            currentP.instance.unMute();
+                        } else if (currentP.type === 'twitch' && currentP.instance && typeof currentP.instance.setMuted === 'function') {
+                            currentP.instance.setMuted(false);
+                        }
+                        delete currentP._wasMuted;
+                    }
+
+                    // Existing card: keep in place if already at target position among visible cards
+                    const visibleCards = Array.from(container.children).filter(el => el.classList.contains('stream-card') && !el.classList.contains('stream-hidden'));
+                    if (visibleCards.indexOf(card) !== targetIdx) {
                         container.appendChild(card);
                     }
                 }
@@ -1813,7 +1877,14 @@
             const browserBtn = document.getElementById('btn-browser-view');
             
             if (weatherPanel.classList.contains('hidden')) {
-                clearAllPlayers();
+                if (!appState.keepStreamsAlive) {
+                    clearAllPlayers();
+                } else {
+                    const container = document.getElementById('grid-container');
+                    if (container) {
+                        container.querySelectorAll('.stream-card').forEach(c => c.classList.add('stream-hidden'));
+                    }
+                }
                 
                 weatherPanel.classList.remove('hidden');
                 streamPanel.classList.add('hidden');
@@ -2010,8 +2081,10 @@
             // Populate rotator settings in modal
             const modeSelect = document.getElementById('rotator-mode-select');
             const intervalInput = document.getElementById('rotator-interval-input');
+            const keepAliveToggle = document.getElementById('keep-streams-alive-toggle');
             if (modeSelect) modeSelect.value = appState.rotatorMode;
             if (intervalInput) intervalInput.value = appState.rotatorInterval;
+            if (keepAliveToggle) keepAliveToggle.checked = !!appState.keepStreamsAlive;
         }
 
         function toggleStreamActive(id, checked) {
@@ -2777,9 +2850,18 @@
         function updateRotatorSettings() {
             const modeSelect = document.getElementById('rotator-mode-select');
             const intervalInput = document.getElementById('rotator-interval-input');
+            const keepAliveToggle = document.getElementById('keep-streams-alive-toggle');
             if (modeSelect) appState.rotatorMode = modeSelect.value;
             if (intervalInput) appState.rotatorInterval = parseInt(intervalInput.value) || 30;
+
+            const prevKeepAlive = appState.keepStreamsAlive;
+            if (keepAliveToggle) appState.keepStreamsAlive = keepAliveToggle.checked;
             persistState();
+
+            // If user turned OFF keepStreamsAlive, clean up any currently hidden background cards
+            if (prevKeepAlive && !appState.keepStreamsAlive) {
+                renderActiveStreams();
+            }
             
             if (cycleInterval) {
                 toggleCycle();
@@ -3101,7 +3183,14 @@
             const browserBtn = document.getElementById('btn-browser-view');
             
             if (browserPanel.classList.contains('hidden')) {
-                clearAllPlayers();
+                if (!appState.keepStreamsAlive) {
+                    clearAllPlayers();
+                } else {
+                    const container = document.getElementById('grid-container');
+                    if (container) {
+                        container.querySelectorAll('.stream-card').forEach(c => c.classList.add('stream-hidden'));
+                    }
+                }
                 
                 browserPanel.classList.remove('hidden');
                 streamsPanel.classList.add('hidden');

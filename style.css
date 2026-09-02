@@ -385,6 +385,10 @@
             position: relative;
         }
 
+        .stream-card.stream-hidden {
+            display: none !important;
+        }
+
         .stream-card:active {
             cursor: grabbing;
         }
