@@ -351,9 +351,6 @@
 
             // Asynchronously initialize location and weather
             initLocationAndWeather();
-            
-            // Asynchronously verify directory streams in the background
-            verifyPublicDirectoryStreams();
 
             // Initialize visitor/guest view counter
             initVisitorCounter();
@@ -3067,20 +3064,37 @@
         }
 
         async function verifyPublicDirectoryStreams() {
-            if (directoryVerificationStarted) return;
-            directoryVerificationStarted = true;
-            isDirectoryVerifying = true;
+            if (isDirectoryVerifying) return;
 
-            const panel = document.getElementById('panel-browser');
-            if (panel && !panel.classList.contains('hidden')) {
+            const unverified = PUBLIC_STREAM_DIRECTORY.filter(item => !verifiedDirectoryStreams[item.url]);
+            if (unverified.length === 0) {
                 renderPublicStreamBrowser();
+                return;
             }
 
-            const promises = PUBLIC_STREAM_DIRECTORY.map(item => checkDirectoryStreamUsability(item));
-            await Promise.allSettled(promises);
+            isDirectoryVerifying = true;
+            renderPublicStreamBrowser();
+
+            const BATCH_SIZE = 4;
+            for (let i = 0; i < unverified.length; i += BATCH_SIZE) {
+                // If user closed or navigated away from the browser panel, pause further batches
+                const panel = document.getElementById('panel-browser');
+                if (!panel || panel.classList.contains('hidden')) {
+                    console.log('[Directory] Paused background stream verification (panel closed).');
+                    break;
+                }
+
+                const batch = unverified.slice(i, i + BATCH_SIZE);
+                await Promise.allSettled(batch.map(item => checkDirectoryStreamUsability(item)));
+                
+                // Progressively update grid as each batch completes
+                if (panel && !panel.classList.contains('hidden')) {
+                    renderPublicStreamBrowser();
+                }
+            }
 
             isDirectoryVerifying = false;
-            
+            const panel = document.getElementById('panel-browser');
             if (panel && !panel.classList.contains('hidden')) {
                 renderPublicStreamBrowser();
             }
@@ -3287,14 +3301,40 @@
             
             grid.innerHTML = '';
 
-            if (isDirectoryVerifying) {
+            const verifiedOnlineStreams = PUBLIC_STREAM_DIRECTORY.filter(item => verifiedDirectoryStreams[item.url] === 'online');
+            const checkedCount = Object.keys(verifiedDirectoryStreams).length;
+            const totalCount = PUBLIC_STREAM_DIRECTORY.length;
+
+            // If verifying and no streams verified online yet, show initial loading state
+            if (isDirectoryVerifying && verifiedOnlineStreams.length === 0) {
                 grid.innerHTML = `
                     <div class="browser-loading-container">
                         <span class="browser-spinner" style="font-size: 3.5rem; margin-bottom: 10px;">📡</span>
-                        <div style="font-weight: 500; letter-spacing: 0.5px;">Verifying stream directory availability...</div>
+                        <div style="font-weight: 500; letter-spacing: 0.5px;">Checking stream availability (${checkedCount}/${totalCount} verified)...</div>
                     </div>
                 `;
                 return;
+            }
+
+            // If currently verifying remaining streams, display non-blocking progress banner
+            if (isDirectoryVerifying) {
+                const banner = document.createElement('div');
+                banner.id = 'browser-verify-progress';
+                banner.style.cssText = `
+                    grid-column: 1 / -1;
+                    padding: 10px 14px;
+                    margin-bottom: 8px;
+                    background: rgba(6, 182, 212, 0.1);
+                    border: 1px solid rgba(6, 182, 212, 0.25);
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    color: var(--accent);
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                `;
+                banner.innerHTML = `<span style="display: inline-block; animation: spin 2s linear infinite;">📡</span> <span>Checking remaining directory streams (${checkedCount}/${totalCount} checked)...</span>`;
+                grid.appendChild(banner);
             }
             
             PUBLIC_STREAM_DIRECTORY.forEach(item => {

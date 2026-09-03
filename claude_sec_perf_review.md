@@ -206,13 +206,13 @@ transition: background-color 0.25s ease, opacity 0.25s ease, transform 0.25s eas
 |----|----------|----------|--------|------------|
 | S1 | Security — URL Sanitization | 🔴 High | Open | ✅ Yes |
 | S2 | Security — MQTT Input Validation | 🔴 High | Open | ✅ Yes |
-| S3 | Security — Cookie Privacy Leak | 🟡 Medium | Open | ✅ Yes |
+| S3 | Security — Cookie Privacy Leak | 🟡 Medium | ✅ Resolved | ✅ Yes |
 | S4 | Security — Iframe Sandboxing | 🟡 Medium | Open | ✅ Yes |
 | S5 | Security — JS String Escaping | 🟡 Medium | Open | ✅ Yes |
 | S6 | Security — CDN Integrity | 🟢 Low | Open | ✅ Yes |
-| S7 | Security — Pairing Cookie Lifetime | 🟢 Low | Open | ✅ Yes |
-| P1 | Perf — Cookie Request Bloat | 🔴 High | Open | ✅ Yes |
-| P2 | Perf — Network Storm | 🔴 High | Open | ✅ Yes |
+| S7 | Security — Pairing Cookie Lifetime | 🟢 Low | ✅ Resolved | ✅ Yes |
+| P1 | Perf — Cookie Request Bloat | 🔴 High | ✅ Resolved | ✅ Yes |
+| P2 | Perf — Network Storm | 🔴 High | ✅ Resolved | ✅ Yes |
 | P3 | Perf — Timer Leaks | 🟡 Medium | Open | ✅ Yes |
 | P4 | Perf — Layout Thrashing | 🟡 Medium | Open | ✅ Yes |
 | P5 | Perf — CSS Transitions | 🟡 Medium | Open | ✅ Yes |
