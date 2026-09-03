@@ -174,7 +174,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
         }
@@ -228,7 +228,7 @@
             background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
             background-repeat: no-repeat;
             background-position: right 10px center;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
         }
@@ -562,7 +562,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: color 0.2s ease, background-color 0.2s ease;
         }
 
         .control-btn:hover {
@@ -586,7 +586,7 @@
             border-radius: 2px;
             background: rgba(255, 255, 255, 0.15);
             outline: none;
-            transition: all 0.2s;
+            transition: background-color 0.2s ease;
         }
 
         .volume-slider::-webkit-slider-runnable-track {
@@ -722,7 +722,7 @@
             line-height: 1;
             padding: 4px;
             border-radius: 50%;
-            transition: all 0.2s;
+            transition: color 0.2s ease, background-color 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -750,7 +750,7 @@
             font-size: 0.85rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            transition: all 0.2s;
+            transition: color 0.2s ease, border-bottom-color 0.2s ease;
         }
 
         .tab-btn:hover {
@@ -816,7 +816,7 @@
             font-family: var(--font-family);
             font-size: 0.85rem;
             outline: none;
-            transition: all 0.2s;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
         }
 
         .form-group input:focus,
@@ -960,7 +960,7 @@
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-right-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             overflow: hidden;
             z-index: 10;
         }
@@ -996,7 +996,7 @@
             cursor: pointer;
             padding: 4px 8px;
             border-radius: 4px;
-            transition: all 0.2s;
+            transition: color 0.2s ease, background-color 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1021,7 +1021,7 @@
             font-size: 0.8rem;
             color: var(--text-main);
             outline: none;
-            transition: all 0.2s;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
             cursor: pointer;
         }
 
@@ -1045,7 +1045,7 @@
             font-size: 0.8rem;
             color: var(--text-main);
             outline: none;
-            transition: all 0.2s;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
         }
 
         .sidebar-search-input:focus {
@@ -1087,7 +1087,7 @@
             flex-direction: column;
             gap: 6px;
             cursor: grab;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             user-select: none;
         }
@@ -1257,7 +1257,7 @@
             justify-content: center;
             cursor: pointer;
             z-index: 9;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0;
             pointer-events: none;
             backdrop-filter: blur(8px);
@@ -1427,7 +1427,7 @@
             background: rgba(255, 255, 255, 0.01);
             border: 1px solid var(--border-color);
             border-radius: 10px;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .weather-daily-item:hover {
@@ -1569,7 +1569,7 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            transition: all 0.2s ease;
+            transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
 
@@ -1706,7 +1706,7 @@
         }
 
         .browser-cat-btn {
-            background: rgba(17, 24, 39, 0.55);
+            background: rgba(17, 24, 39, 0.4);
             border: 1px solid var(--border-color);
             color: var(--text-muted);
             padding: 8px 16px;
@@ -1714,7 +1714,7 @@
             cursor: pointer;
             font-size: 0.8rem;
             font-weight: 600;
-            transition: all 0.25s ease;
+            transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
         }
 
         .browser-cat-btn:hover {
@@ -1744,7 +1744,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            transition: all 0.25s ease;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
             backdrop-filter: blur(24px) saturate(180%);
             -webkit-backdrop-filter: blur(24px) saturate(180%);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
@@ -1881,7 +1881,7 @@
             font-size: 0.75rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: opacity 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
             opacity: 0.3;
         }
 
@@ -1943,7 +1943,7 @@
             opacity: 0;
             transform: translateY(-10px);
             pointer-events: none;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .more-controls-dropdown-menu.show {
@@ -2090,7 +2090,7 @@
             font-weight: 600;
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
             text-align: center;
         }
 
@@ -2136,7 +2136,7 @@
             justify-content: center;
             gap: 8px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
             color: var(--text-main);
         }
 
@@ -2217,7 +2217,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
         }
 
         .remote-action-btn:active {
@@ -2351,7 +2351,7 @@
             font-size: 0.75rem;
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
             position: relative;
             user-select: none;
             box-sizing: border-box;
@@ -2391,7 +2391,7 @@
             cursor: pointer;
             padding: 0;
             line-height: 1;
-            transition: all 0.15s;
+            transition: background-color 0.15s ease, color 0.15s ease;
             z-index: 10;
         }
 
@@ -2498,7 +2498,7 @@
         .remote-draggable-item {
             cursor: grab;
             user-select: none;
-            transition: all 0.2s ease;
+            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
         }
 
         .remote-draggable-item:active {

@@ -990,6 +990,8 @@
             const selectedCategory = categorySelect ? categorySelect.value : 'all';
             
             listContainer.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            let count = 0;
             
             appState.streams.forEach(stream => {
                 const streamCategory = stream.category || 'General';
@@ -1037,15 +1039,18 @@
                     </div>
                 `;
                 
-                listContainer.appendChild(item);
+                fragment.appendChild(item);
+                count++;
             });
             
-            if (listContainer.children.length === 0) {
+            if (count === 0) {
                 listContainer.innerHTML = `
                     <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">
                         No streams found
                     </div>
                 `;
+            } else {
+                listContainer.appendChild(fragment);
             }
         }
 
@@ -2119,6 +2124,7 @@
         function populateSettings() {
             const tbody = document.getElementById('streams-table-body');
             tbody.innerHTML = '';
+            const fragment = document.createDocumentFragment();
             
             appState.streams.forEach((s, idx) => {
                 const tr = document.createElement('tr');
@@ -2191,8 +2197,9 @@
                 }
                 
                 tr.appendChild(actionCell);
-                tbody.appendChild(tr);
+                fragment.appendChild(tr);
             });
+            tbody.appendChild(fragment);
 
             // Populate rotator settings in modal
             const modeSelect = document.getElementById('rotator-mode-select');
@@ -2463,6 +2470,7 @@
                 return;
             }
             
+            const fragment = document.createDocumentFragment();
             presets.forEach(p => {
                 const tr = document.createElement('tr');
                 
@@ -2491,8 +2499,9 @@
                 actionCell.appendChild(delBtn);
                 tr.appendChild(actionCell);
                 
-                tbody.appendChild(tr);
+                fragment.appendChild(tr);
             });
+            tbody.appendChild(fragment);
         }
 
         // 3. Multi-Monitor Pop-out Management
@@ -3405,6 +3414,7 @@
                 grid.appendChild(banner);
             }
             
+            const fragment = document.createDocumentFragment();
             PUBLIC_STREAM_DIRECTORY.forEach(item => {
                 // Verify stream is usable before showing
                 if (verifiedDirectoryStreams[item.url] !== 'online') {
@@ -3476,8 +3486,9 @@
                     actionDiv.appendChild(btn);
                 }
                 
-                grid.appendChild(card);
+                fragment.appendChild(card);
             });
+            grid.appendChild(fragment);
             
             if (grid.children.length === 0) {
                 grid.innerHTML = `
