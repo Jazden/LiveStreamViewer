@@ -781,16 +781,47 @@
         const urlEl = document.getElementById('remote-add-url');
         const typeEl = document.getElementById('remote-add-type');
 
-        const name = nameEl.value.trim();
-        const url = urlEl.value.trim();
-        const type = typeEl.value;
+        const name = nameEl.value.trim().substring(0, 100);
+        const rawUrl = urlEl.value.trim();
+        const type = typeEl.value.toLowerCase().trim();
 
-        if (!name || !url) return;
+        if (!name) {
+            alert('Please enter a stream name.');
+            return;
+        }
+
+        const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes'];
+        if (!VALID_TYPES.includes(type)) {
+            alert('Invalid stream type selected.');
+            return;
+        }
+
+        // Client-side URL format validation
+        let isValidUrl = false;
+        if (type === 'weather' || type === 'notes') {
+            isValidUrl = true;
+        } else if (type === 'twitch' && /^[a-zA-Z0-9_]{2,35}$/.test(rawUrl)) {
+            isValidUrl = true;
+        } else {
+            try {
+                const parsed = new URL(rawUrl);
+                if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                    isValidUrl = true;
+                }
+            } catch (e) {
+                isValidUrl = false;
+            }
+        }
+
+        if (!isValidUrl) {
+            alert('Please enter a valid HTTP or HTTPS stream URL (or a valid channel handle for Twitch).');
+            return;
+        }
 
         sendRemoteCommand('addStream', {
             stream: {
                 name: name,
-                url: url,
+                url: rawUrl,
                 type: type,
                 category: 'Remote Custom'
             }

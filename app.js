@@ -2524,6 +2524,7 @@
                 alert('Pop-up window was blocked! Please allow pop-ups for this site.');
                 return;
             }
+            popWin.opener = null;
             
             let playerHtml = '';
             if (type === 'hls') {
@@ -2531,7 +2532,7 @@
                     <video id="pop-player" class="video-js vjs-default-skin vjs-big-play-centered" controls autoplay playsinline style="width:100%; height:100vh;">
                         <source src="${escapedUrl}" type="application/x-mpegURL">
                     </video>
-                    <script src="https://vjs.zencdn.net/8.10.0/video.js"></script>
+                    <script src="https://vjs.zencdn.net/8.10.0/video.js" integrity="sha384-SP4kHUZoQ2oygHagiNEmaLGBfCNAu1Q0idIJrYs7Cpzj6m4PZeECCXlU1S+ZEs+z" crossorigin="anonymous"></script>
                     <script>
                         videojs('pop-player', {
                             autoplay: true,
@@ -2569,7 +2570,7 @@
                 <head>
                     <meta charset="UTF-8">
                     <title>${name} - Live Stream Viewer Pop-out</title>
-                    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+                    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" integrity="sha384-6LeG/ONVwTyNrI1eNFYoIcUrglv6y7o8hvl3DB8Qd4K2/wD8niobYgHS3RJSO7uL" crossorigin="anonymous" />
                     <style>
                         body, html {
                             margin: 0;
@@ -3871,6 +3872,11 @@
             try {
                 const envelope = JSON.parse(rawStr);
                 if (!envelope || typeof envelope !== 'object' || !envelope.p || !envelope.s || !envelope.n || !envelope.t) {
+                    if (secret) {
+                        console.warn("[Crypto] Rejected unauthenticated message while pairing secret is active.");
+                        showInsecureRemoteWarning(true);
+                        return null;
+                    }
                     showInsecureRemoteWarning(true);
                     return envelope;
                 }
@@ -3888,17 +3894,17 @@
 
                 const now = Date.now();
                 if (Math.abs(now - envelope.t) > 300000) {
-                    console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + "). Allowing in unverified mode.");
+                    console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + "). Dropping unauthorized message.");
                     showInsecureRemoteWarning(true);
-                    return JSON.parse(envelope.p);
+                    return null;
                 }
 
                 const signatureInput = `${envelope.p}|${envelope.n}|${envelope.t}`;
                 const calculatedSig = await hmacSha256(signatureInput, secret);
                 if (calculatedSig !== envelope.s) {
-                    console.warn("[Crypto] Invalid signature from remote. Allowing in unverified mode.");
+                    console.warn("[Crypto] Invalid signature from remote. Dropping unauthorized message.");
                     showInsecureRemoteWarning(true);
-                    return JSON.parse(envelope.p);
+                    return null;
                 }
 
                 recentNonces.add(envelope.n);
