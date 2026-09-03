@@ -21,5 +21,6 @@ const defaultChannels = [
     { name: "Bolivar - Rollover Pass Cam", url: "https://live6.brownrice.com:444/coastaloutdoorsrolloverpass/coastaloutdoorsrolloverpass.stream/main_playlist.m3u8", type: "hls", category: "Beach Cams", active: false },
     { name: "Local Weather Forecast", url: "weather", type: "weather", category: "Weather Cams", active: false },
     { name: "Console Event Log", url: "notes", type: "notes", category: "General", active: false },
-    { name: "PowerBI Sample Report", url: "https://playground.powerbi.com/sampleReportEmbed", type: "iframe", category: "Reports", active: false }
+    { name: "PowerBI Sample Report", url: "https://playground.powerbi.com/sampleReportEmbed", type: "iframe", category: "Reports", active: false },
+    { name: "Daily Safety Message", url: "safety", type: "safety", category: "Safety", active: false }
 ];

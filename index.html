@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.5.2">
+    <link rel="stylesheet" href="style.css?v=1.5.3">
 </head>
 <body>
 
@@ -321,6 +321,7 @@
                 <button class="tab-btn active" onclick="switchTab('tab-streams')">Streams Configuration</button>
                 <button class="tab-btn" onclick="switchTab('tab-presets')">Layout Presets</button>
                 <button class="tab-btn" onclick="switchTab('tab-location')">Location & Time</button>
+                <button class="tab-btn" onclick="switchTab('tab-safety')">Safety Messages</button>
                 <button class="tab-btn" onclick="switchTab('tab-system')">System Defaults</button>
             </div>
 
@@ -346,6 +347,7 @@
                                     <option value="twitch">Twitch Stream Channel</option>
                                     <option value="iframe">Generic Web Embed (Iframe)</option>
                                     <option value="notes">Text Notepad Widget</option>
+                                    <option value="safety">Daily Safety Message Widget</option>
                                 </select>
                             </div>
                         </div>
@@ -453,6 +455,59 @@
                         </div>
                         <button type="submit" class="btn btn-primary">Apply Location Settings</button>
                     </form>
+                </div>
+
+                <!-- Tab: Safety Messages Schedule -->
+                <div id="tab-safety" class="tab-content">
+                    <div class="form-section-title">Daily Safety Messages Schedule</div>
+                    <p class="about-text">
+                        Upload an Excel (<strong>.xlsx</strong> / <strong>.xls</strong>) or <strong>.csv</strong> spreadsheet containing scheduled daily safety messages for the upcoming week or month.
+                        The file should contain two columns: <strong>Display Date</strong> (Column 1) and <strong>Safety Message</strong> (Column 2).
+                    </p>
+
+                    <div class="safety-upload-zone" id="safety-drop-zone">
+                        <div class="suz-icon">🛡️</div>
+                        <div class="suz-title">Drop Excel or CSV Schedule Here</div>
+                        <div class="suz-sub">Accepts .xlsx, .xls, or .csv files with Date & Message columns</div>
+                        <input type="file" id="safety-file-input" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleSafetyFileInput(event)">
+                        <div class="suz-actions">
+                            <button type="button" class="btn btn-primary" onclick="document.getElementById('safety-file-input').click()">
+                                📁 Choose File (.xlsx, .csv)
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="downloadSampleSafetyTemplate()">
+                                📥 Download Sample Template (.csv)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="safety-status-banner" class="safety-status-banner">
+                        <div class="ssb-indicator" id="ssb-indicator"></div>
+                        <div id="ssb-text">Checking safety messages schedule...</div>
+                    </div>
+
+                    <div class="form-section-title" style="margin-top: 25px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>Scheduled Messages Preview</span>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="clearSafetySchedule()" id="btn-clear-safety" style="display: none; padding: 4px 10px; font-size: 0.75rem;">Clear Schedule</button>
+                    </div>
+
+                    <div class="safety-table-wrapper">
+                        <table class="streams-table" id="safety-preview-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 130px;">Date</th>
+                                    <th>Safety Message</th>
+                                    <th style="width: 90px; text-align: center;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="safety-table-body">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                                        No scheduled messages loaded. Upload a spreadsheet above to set up daily safety alerts.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Tab: System Defaults -->
@@ -594,6 +649,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js" integrity="sha384-ZFaJg22VvVm4+3ZqY9eRIHGmqdEQb+c7XO+0IKspqdtPGFu6xRiPnK8xeNA//kQJ" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" integrity="sha384-Dr98ddmUw2QkdCarNQ+OL7xLty7cSxgR0T7v1tq4UErS/qLV0132sBYTolRAFuOV" crossorigin="anonymous"></script>
     
-    <script src="app.js?v=2.3.0"></script>
+    <!-- SheetJS Excel Spreadsheet Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIFv15hOYhnNWmN0lQOOt45Cu4NWXzxLzgL5Fiw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script src="app.js?v=2.4.0"></script>
 </body>
 </html>

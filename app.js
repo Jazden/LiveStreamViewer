@@ -79,7 +79,7 @@
             if (!trimmed) return 'about:blank';
 
             // Internal tokens
-            if (trimmed === 'weather' || trimmed === 'notes') {
+            if (trimmed === 'weather' || trimmed === 'notes' || trimmed === 'safety') {
                 return trimmed;
             }
 
@@ -368,8 +368,12 @@
                         urlInput.value = 'notes';
                         urlInput.placeholder = 'N/A (Automatically set to notes)';
                         urlInput.readOnly = true;
+                    } else if (typeInput.value === 'safety') {
+                        urlInput.value = 'safety';
+                        urlInput.placeholder = 'N/A (Daily Safety Message Widget)';
+                        urlInput.readOnly = true;
                     } else {
-                        if (urlInput.value === 'notes') {
+                        if (urlInput.value === 'notes' || urlInput.value === 'safety') {
                             urlInput.value = '';
                         }
                         urlInput.placeholder = 'e.g. https://domain.com/feed.m3u8 or YouTube URL';
@@ -377,6 +381,9 @@
                     }
                 });
             }
+
+            // Initialize Safety Message dropzone
+            initSafetyDropZone();
 
             // Asynchronously initialize location and weather
             initLocationAndWeather();
@@ -1965,8 +1972,10 @@
             const isIframe = stream.type === 'iframe';
             const isNotes = stream.type === 'notes';
             const isWeather = stream.type === 'weather';
+            const isSafety = stream.type === 'safety';
             if (isIframe) card.classList.add('stream-iframe-card');
             if (isWeather) card.classList.add('stream-weather-card');
+            if (isSafety) card.classList.add('stream-safety-card');
             
             let controlsHtml = '';
             let headerActionsHtml = '';
@@ -1997,6 +2006,16 @@
                 `;
             } else if (isWeather) {
                 // Weather stream: No bottom action bar on hover to prevent covering 5-day forecast
+                controlsHtml = '';
+                headerActionsHtml = `
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
+                            ${FULLSCREEN_SVG}
+                        </button>
+                    </div>
+                `;
+            } else if (isSafety) {
+                // Safety message stream: clean fullscreen button, no bottom control bar covering message
                 controlsHtml = '';
                 headerActionsHtml = `
                     <div style="display: flex; gap: 6px; align-items: center;">
@@ -2229,6 +2248,16 @@
                 initializeNotesWidget(stream);
                 activePlayers[stream.id] = {
                     type: 'notes',
+                    instance: null,
+                    url: stream.url,
+                    muted: true,
+                    volume: 50
+                };
+            }
+            else if (stream.type === 'safety') {
+                initializeSafetyWidget(stream);
+                activePlayers[stream.id] = {
+                    type: 'safety',
                     instance: null,
                     url: stream.url,
                     muted: true,
@@ -2691,6 +2720,7 @@
         // Modal triggers
         function openSettings() {
             document.getElementById('settings-modal').classList.add('open');
+            populateSafetySettings();
         }
 
         function openSettingsToTab(tabId) {
@@ -2723,6 +2753,8 @@
             
             if (tabId === 'tab-presets') {
                 populatePresetsTable();
+            } else if (tabId === 'tab-safety') {
+                populateSafetySettings();
             }
         }
 
@@ -2741,14 +2773,14 @@
             
             if (!name || !rawUrl) return;
 
-            const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes'];
+            const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes', 'safety'];
             if (!VALID_TYPES.includes(type)) {
                 alert('Invalid stream type selected.');
                 return;
             }
 
             const safeUrl = sanitizeUrl(rawUrl, type);
-            if (safeUrl === 'about:blank' && type !== 'notes' && type !== 'weather') {
+            if (safeUrl === 'about:blank' && type !== 'notes' && type !== 'weather' && type !== 'safety') {
                 alert('Please enter a valid HTTP or HTTPS stream URL.');
                 return;
             }
@@ -3729,6 +3761,474 @@
 
         function saveNotesContent(streamId, val) {
             setStoredItem(`notes_content_${streamId}`, val);
+        }
+
+        // --- Daily Safety Message Subsystem ---
+
+        const SAFETY_STORAGE_KEY = 'safety_messages_schedule';
+
+        // Normalize various spreadsheet date formats into YYYY-MM-DD
+        function normalizeDateString(raw) {
+            if (!raw) return null;
+            if (raw instanceof Date && !isNaN(raw)) {
+                const year = raw.getFullYear();
+                const month = String(raw.getMonth() + 1).padStart(2, '0');
+                const day = String(raw.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            // Excel serial date number
+            if (typeof raw === 'number' || (!isNaN(raw) && !isNaN(parseFloat(raw)) && isFinite(raw) && Number(raw) > 20000 && Number(raw) < 80000)) {
+                const serial = Number(raw);
+                const utcDays = Math.floor(serial - 25569);
+                const d = new Date(utcDays * 86400 * 1000);
+                const year = d.getUTCFullYear();
+                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            const str = String(raw).trim();
+            // YYYY-MM-DD or YYYY/MM/DD
+            const isoMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+            if (isoMatch) {
+                return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
+            }
+            // M/D/YYYY or MM/DD/YYYY or M-D-YYYY
+            const usMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+            if (usMatch) {
+                return `${usMatch[3]}-${String(usMatch[1]).padStart(2, '0')}-${String(usMatch[2]).padStart(2, '0')}`;
+            }
+            // Native Date string fallback
+            const parsed = new Date(str);
+            if (!isNaN(parsed.getTime())) {
+                const year = parsed.getFullYear();
+                const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                const day = String(parsed.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            return null;
+        }
+
+        // Format YYYY-MM-DD into a human-friendly display date (e.g. "Thursday, Sep 3, 2026")
+        function formatSafetyDisplayDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const dateObj = new Date(y, m - 1, d);
+                return dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Get today's local/configured date string (YYYY-MM-DD)
+        function getTodayDateString() {
+            const tz = appState?.timezone || 'America/Chicago';
+            try {
+                const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+                return formatter.format(new Date());
+            } catch (e) {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        }
+
+        // Read stored schedule from localStorage
+        function getSafetyMessagesSchedule() {
+            try {
+                const raw = getStoredItem(SAFETY_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {
+                console.warn('[Safety] Failed to parse safety schedule from storage:', e);
+            }
+            return [];
+        }
+
+        // Save schedule to localStorage
+        function saveSafetyMessagesSchedule(list) {
+            setStoredItem(SAFETY_STORAGE_KEY, JSON.stringify(list));
+            refreshSafetyWidgets();
+            populateSafetySettings();
+        }
+
+        // Retrieve safety message for today with graceful fallbacks
+        function getTodaySafetyMessage() {
+            const schedule = getSafetyMessagesSchedule();
+            const todayStr = getTodayDateString();
+            const displayToday = formatSafetyDisplayDate(todayStr);
+
+            // 1. Exact match for today
+            const todayMatch = schedule.find(item => item.date === todayStr);
+            if (todayMatch && todayMatch.message) {
+                return {
+                    found: true,
+                    isToday: true,
+                    date: todayMatch.date,
+                    displayDate: displayToday,
+                    message: todayMatch.message,
+                    statusText: 'Active Today',
+                    statusClass: 'status-active'
+                };
+            }
+
+            // 2. Fallback to most recent prior message
+            if (schedule.length > 0) {
+                const pastOrCurrent = schedule
+                    .filter(item => item.date && item.date <= todayStr && item.message)
+                    .sort((a, b) => b.date.localeCompare(a.date));
+                
+                if (pastOrCurrent.length > 0) {
+                    const latest = pastOrCurrent[0];
+                    return {
+                        found: true,
+                        isToday: false,
+                        isRecent: true,
+                        date: latest.date,
+                        displayDate: displayToday,
+                        message: latest.message,
+                        statusText: `Latest (${formatSafetyDisplayDate(latest.date)})`,
+                        statusClass: 'status-advisory'
+                    };
+                }
+
+                // If all scheduled dates are in the future, pick the earliest upcoming one
+                const upcoming = [...schedule].sort((a, b) => a.date.localeCompare(b.date));
+                if (upcoming.length > 0 && upcoming[0].message) {
+                    const nextMsg = upcoming[0];
+                    return {
+                        found: true,
+                        isToday: false,
+                        isUpcoming: true,
+                        date: nextMsg.date,
+                        displayDate: displayToday,
+                        message: nextMsg.message,
+                        statusText: `Upcoming (${formatSafetyDisplayDate(nextMsg.date)})`,
+                        statusClass: 'status-advisory'
+                    };
+                }
+            }
+
+            // 3. Default safety guidance
+            return {
+                found: false,
+                isDefault: true,
+                date: todayStr,
+                displayDate: displayToday,
+                message: "Safety is not an accident. Wear required PPE, inspect all equipment before use, and look out for your teammates.",
+                statusText: "Safety Advisory",
+                statusClass: "status-advisory"
+            };
+        }
+
+        // Dynamic typography class based on message length
+        function getSafetyTextSizeClass(message) {
+            const len = (message || '').trim().length;
+            if (len <= 60) return 'sm-size-impact';
+            if (len <= 140) return 'sm-size-short';
+            if (len <= 260) return 'sm-size-medium';
+            return 'sm-size-long';
+        }
+
+        // Render Safety Message stream widget inside slot container
+        function initializeSafetyWidget(stream) {
+            const container = document.getElementById(`player-container-${stream.id}`);
+            if (!container) return;
+
+            const safetyInfo = getTodaySafetyMessage();
+            const sizeClass = getSafetyTextSizeClass(safetyInfo.message);
+
+            container.innerHTML = `
+                <div class="safety-widget-container" id="safety-widget-${stream.id}">
+                    <div class="safety-header-bar">
+                        <div class="safety-header-title">
+                            <span class="safety-header-icon">🛡️</span>
+                            <span>Daily Safety Message</span>
+                        </div>
+                        <div class="safety-header-date">${escapeHtml(safetyInfo.displayDate)}</div>
+                    </div>
+
+                    <div class="safety-message-box">
+                        <div class="safety-message-text ${sizeClass}">
+                            ${escapeHtml(safetyInfo.message)}
+                        </div>
+                    </div>
+
+                    <div class="safety-footer-bar">
+                        <span class="safety-status-pill ${safetyInfo.statusClass}">
+                            ${escapeHtml(safetyInfo.statusText)}
+                        </span>
+                        <span>Zero Harm • Work Safe Today</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Re-render all active safety widgets on screen
+        function refreshSafetyWidgets() {
+            if (!appState || !appState.streams) return;
+            const safetyStreams = appState.streams.filter(s => s.type === 'safety' && s.active);
+            safetyStreams.forEach(s => {
+                initializeSafetyWidget(s);
+            });
+        }
+
+        // Parse CSV text with quote and comma handling
+        function parseCsvSafetyRows(text) {
+            const lines = text.split(/\r?\n/);
+            const rows = [];
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const row = [];
+                let inQuotes = false;
+                let current = '';
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        if (inQuotes && line[i + 1] === '"') {
+                            current += '"';
+                            i++;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                row.push(current.trim());
+                rows.push(row);
+            }
+            return rows;
+        }
+
+        // Parse Excel (.xlsx, .xls) or CSV spreadsheet file
+        async function parseSafetySpreadsheet(file) {
+            const fileName = file.name.toLowerCase();
+            const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+            const buffer = await file.arrayBuffer();
+            let rawRows = [];
+
+            if (isExcel && typeof XLSX !== 'undefined') {
+                const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[firstSheetName];
+                rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+            } else {
+                // Parse as text / CSV
+                const text = new TextDecoder('utf-8').decode(buffer);
+                rawRows = parseCsvSafetyRows(text);
+            }
+
+            const messages = [];
+
+            for (let i = 0; i < rawRows.length; i++) {
+                const row = rawRows[i];
+                if (!row || row.length < 2) continue;
+
+                const col0 = String(row[0] || '').trim();
+                const col1 = String(row[1] || '').trim();
+
+                // Check for header row (e.g., "Date", "Message")
+                if (i === 0 && (col0.toLowerCase().includes('date') || col0.toLowerCase().includes('day')) && 
+                    (col1.toLowerCase().includes('message') || col1.toLowerCase().includes('safety') || col1.toLowerCase().includes('tip'))) {
+                    continue;
+                }
+
+                const normalizedDate = normalizeDateString(row[0]);
+                if (normalizedDate && col1) {
+                    messages.push({
+                        date: normalizedDate,
+                        message: col1
+                    });
+                }
+            }
+
+            // Deduplicate by date (keep last entry for same date)
+            const map = new Map();
+            messages.forEach(m => map.set(m.date, m));
+            const sorted = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+            return sorted;
+        }
+
+        // File input change handler in Settings
+        async function handleSafetyFileInput(event) {
+            const input = event.target;
+            if (!input.files || input.files.length === 0) return;
+
+            const file = input.files[0];
+            try {
+                const messages = await parseSafetySpreadsheet(file);
+                if (messages.length === 0) {
+                    alert("Could not parse any valid date and message pairs from this file. Please make sure Column 1 has dates (e.g. 2026-09-03) and Column 2 has messages.");
+                    input.value = '';
+                    return;
+                }
+
+                saveSafetyMessagesSchedule(messages);
+                alert(`Successfully imported ${messages.length} safety message${messages.length === 1 ? '' : 's'}!`);
+            } catch (err) {
+                console.error("[Safety] Error reading uploaded file:", err);
+                alert("Failed to process spreadsheet file: " + (err.message || err));
+            } finally {
+                input.value = '';
+            }
+        }
+
+        // Initialize drag and drop for safety file drop zone
+        function initSafetyDropZone() {
+            const dropZone = document.getElementById('safety-drop-zone');
+            if (!dropZone) return;
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.add('dragover');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('dragover');
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files && files.length > 0) {
+                    handleSafetyFileInput({ target: { files: files } });
+                }
+            }, false);
+        }
+
+        // Generate and download a starter CSV template
+        function downloadSampleSafetyTemplate() {
+            const today = new Date();
+            const rows = [
+                ['Date', 'Safety Message']
+            ];
+
+            const sampleMessages = [
+                "Stay hydrated and take shade breaks during high heat index conditions.",
+                "Maintain 3 points of contact when climbing ladders or mounting equipment.",
+                "Wear high-visibility vests and stay alert around moving machinery and vehicles.",
+                "Ensure emergency eyewash stations and fire exits remain unobstructed at all times.",
+                "Inspect personal protective equipment (PPE) for wear and defects before each shift.",
+                "Practice proper lifting techniques: bend your knees, keep your back straight, and ask for help.",
+                "Look out for slip, trip, and fall hazards. Keep walking paths clean and clear."
+            ];
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(today);
+                d.setDate(d.getDate() + i);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                rows.push([dateStr, `"${sampleMessages[i % sampleMessages.length]}"`]);
+            }
+
+            const csvContent = rows.map(r => r.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'safety_messages_template.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // Clear existing schedule
+        function clearSafetySchedule() {
+            if (!confirm("Are you sure you want to clear the scheduled safety messages? The widget will revert to standard safety advisories.")) {
+                return;
+            }
+            localStorage.removeItem(SAFETY_STORAGE_KEY);
+            refreshSafetyWidgets();
+            populateSafetySettings();
+        }
+
+        // Update preview table and status banner in Settings modal
+        function populateSafetySettings() {
+            const schedule = getSafetyMessagesSchedule();
+            const todayStr = getTodayDateString();
+            const todayMsgInfo = getTodaySafetyMessage();
+
+            const statusBanner = document.getElementById('safety-status-banner');
+            const indicator = document.getElementById('ssb-indicator');
+            const statusText = document.getElementById('ssb-text');
+            const clearBtn = document.getElementById('btn-clear-safety');
+            const tbody = document.getElementById('safety-table-body');
+
+            if (statusBanner && indicator && statusText) {
+                if (schedule.length > 0) {
+                    indicator.className = 'ssb-indicator online';
+                    if (todayMsgInfo.isToday) {
+                        statusText.innerHTML = `<strong>${schedule.length} messages scheduled</strong> • Active today: <em>"${escapeHtml(todayMsgInfo.message.slice(0, 60))}${todayMsgInfo.message.length > 60 ? '...' : ''}"</em>`;
+                    } else {
+                        statusText.innerHTML = `<strong>${schedule.length} messages scheduled</strong> • (No exact match for today; displaying ${todayMsgInfo.statusText})`;
+                    }
+                    if (clearBtn) clearBtn.style.display = 'inline-block';
+                } else {
+                    indicator.className = 'ssb-indicator';
+                    statusText.innerText = 'No schedule loaded. The widget is displaying default daily safety advisories.';
+                    if (clearBtn) clearBtn.style.display = 'none';
+                }
+            }
+
+            if (tbody) {
+                if (schedule.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                                No scheduled messages loaded. Upload an Excel or CSV file above to set up daily alerts.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = schedule.map(item => {
+                    const isToday = item.date === todayStr;
+                    const isPast = item.date < todayStr;
+                    let badgeHtml = '';
+                    if (isToday) {
+                        badgeHtml = '<span class="safety-status-pill status-active">Today</span>';
+                    } else if (isPast) {
+                        badgeHtml = '<span style="color: var(--text-muted); font-size: 0.7rem;">Past</span>';
+                    } else {
+                        badgeHtml = '<span style="color: #60a5fa; font-size: 0.7rem; font-weight: 600;">Upcoming</span>';
+                    }
+
+                    return `
+                        <tr style="${isToday ? 'background: rgba(16, 185, 129, 0.08);' : ''}">
+                            <td style="font-weight: ${isToday ? '800' : '600'}; color: ${isToday ? '#34d399' : 'var(--text-main)'}; font-family: monospace; font-size: 0.82rem;">
+                                ${escapeHtml(item.date)}
+                            </td>
+                            <td style="font-size: 0.85rem; color: ${isToday ? '#ffffff' : 'var(--text-main)'};">
+                                ${escapeHtml(item.message)}
+                            </td>
+                            <td style="text-align: center;">
+                                ${badgeHtml}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
         }
 
         // --- Public Stream Directory Browser ---
