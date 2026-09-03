@@ -926,6 +926,23 @@
             color: var(--text-muted);
         }
 
+        .table-action-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .table-action-group .btn-icon {
+            padding: 4px 7px;
+            font-size: 0.75rem;
+            min-width: 26px;
+            height: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .player-error {
             display: flex;
             align-items: center;

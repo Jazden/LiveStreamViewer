@@ -657,6 +657,7 @@
         }
 
         streams.forEach(stream => {
+            if (stream.hidden || stream.hiddenFromPicker) return;
             const item = document.createElement('div');
             item.className = 'remote-list-item';
 

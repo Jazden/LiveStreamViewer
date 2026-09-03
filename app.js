@@ -204,13 +204,18 @@
                 url: s.url,
                 type: s.type,
                 category: s.category || 'General',
-                active: s.active
+                active: s.active,
+                hiddenFromPicker: !!s.hiddenFromPicker
             }));
             setStoredItem('user_streams', JSON.stringify(userStreams));
             
             // Save active stream IDs (both default and custom)
             const activeIds = appState.streams.filter(s => s.active).map(s => s.id);
             setStoredItem('active_stream_ids', JSON.stringify(activeIds));
+
+            // Save hidden stream IDs (both default and custom)
+            const hiddenIds = appState.streams.filter(s => s.hiddenFromPicker).map(s => s.id);
+            setStoredItem('hidden_stream_ids', JSON.stringify(hiddenIds));
             
             // Save stream order
             const orderIds = appState.streams.map(s => s.id);
@@ -282,7 +287,8 @@
                 url: c.url,
                 type: c.type || 'hls',
                 category: c.category || 'General',
-                active: c.active !== undefined ? c.active : true,
+                active: c.active !== undefined ? c.active : false,
+                hiddenFromPicker: false,
                 isDefault: true
             }));
             
@@ -293,7 +299,8 @@
                     url: us.url,
                     type: us.type,
                     category: us.category || 'General',
-                    active: us.active !== undefined ? us.active : true,
+                    active: us.active !== undefined ? us.active : false,
+                    hiddenFromPicker: !!(us.hiddenFromPicker || us.hidden),
                     isDefault: false
                 });
             });
@@ -308,6 +315,21 @@
                     });
                 } catch (e) {
                     console.error('Error parsing active stream IDs storage', e);
+                }
+            }
+
+            // Load hidden stream IDs (both default and custom)
+            const savedHiddenIds = getStoredItem('hidden_stream_ids');
+            if (savedHiddenIds) {
+                try {
+                    const hiddenIds = JSON.parse(savedHiddenIds);
+                    streams.forEach(s => {
+                        if (hiddenIds.includes(s.id)) {
+                            s.hiddenFromPicker = true;
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error parsing hidden stream IDs storage', e);
                 }
             }
 
@@ -378,6 +400,26 @@
                         }
                         urlInput.placeholder = 'e.g. https://domain.com/feed.m3u8 or YouTube URL';
                         urlInput.readOnly = false;
+                    }
+                });
+            }
+
+            // Register change handler for Edit Stream modal type input
+            const editTypeInput = document.getElementById('edit-stream-type');
+            const editUrlInput = document.getElementById('edit-stream-url');
+            if (editTypeInput && editUrlInput) {
+                editTypeInput.addEventListener('change', () => {
+                    if (editTypeInput.value === 'notes') {
+                        editUrlInput.value = 'notes';
+                        editUrlInput.readOnly = true;
+                    } else if (editTypeInput.value === 'safety') {
+                        editUrlInput.value = 'safety';
+                        editUrlInput.readOnly = true;
+                    } else {
+                        if (editUrlInput.value === 'notes' || editUrlInput.value === 'safety') {
+                            editUrlInput.value = '';
+                        }
+                        editUrlInput.readOnly = false;
                     }
                 });
             }
@@ -1666,6 +1708,9 @@
             let count = 0;
             
             appState.streams.forEach(stream => {
+                if (stream.hiddenFromPicker) {
+                    return;
+                }
                 const streamCategory = stream.category || 'General';
                 if (selectedCategory !== 'all' && streamCategory.toLowerCase() !== selectedCategory.toLowerCase()) {
                     return;
@@ -2785,13 +2830,17 @@
                 return;
             }
             
+            const hiddenInput = document.getElementById('stream-hidden-input');
+            const isHidden = hiddenInput ? !!hiddenInput.checked : false;
+            
             const newStream = {
                 id: 'custom-' + Date.now(),
                 name: name,
                 url: safeUrl,
                 type: type,
                 category: category,
-                active: true,
+                active: false,
+                hiddenFromPicker: isHidden,
                 isDefault: false
             };
             
@@ -2802,6 +2851,7 @@
             nameInput.value = '';
             if (categoryInput) categoryInput.value = '';
             urlInput.value = '';
+            if (hiddenInput) hiddenInput.checked = false;
             
             populateSidebarCategories();
             populateSettings();
@@ -2892,7 +2942,17 @@
                 urlCell.style.whiteSpace = 'nowrap';
                 tr.appendChild(urlCell);
                 
-                // Order actions & delete button
+                // Hide from Picker checkbox
+                const hideCell = document.createElement('td');
+                hideCell.style.textAlign = 'center';
+                hideCell.innerHTML = `
+                    <label class="checkbox-container" title="Hide/show stream in the main sidebar stream picker">
+                        <input type="checkbox" ${s.hiddenFromPicker ? 'checked' : ''} onchange="toggleStreamHidden('${s.id}', this.checked)">
+                    </label>
+                `;
+                tr.appendChild(hideCell);
+
+                // Order actions & edit/delete buttons
                 const actionCell = document.createElement('td');
                 actionCell.className = 'table-action-group';
                 
@@ -2912,6 +2972,13 @@
                 actionCell.appendChild(downBtn);
                 
                 if (!s.isDefault) {
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn btn-sm btn-icon';
+                    editBtn.title = 'Edit Custom Stream';
+                    editBtn.innerText = 'Edit';
+                    editBtn.onclick = () => openEditStreamModal(s.id);
+                    actionCell.appendChild(editBtn);
+
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'btn btn-danger btn-sm btn-icon';
                     deleteBtn.innerText = 'Del';
@@ -2952,6 +3019,16 @@
                 }
                 
                 renderActiveStreams();
+                renderSidebarStreams();
+                populateSettings();
+            }
+        }
+
+        function toggleStreamHidden(id, checked) {
+            const s = appState.streams.find(st => st.id === id);
+            if (s) {
+                s.hiddenFromPicker = checked;
+                persistState();
                 renderSidebarStreams();
                 populateSettings();
             }
@@ -3010,11 +3087,110 @@
             renderSidebarStreams();
         }
 
+        function openEditStreamModal(streamId) {
+            const stream = appState.streams.find(s => s.id === streamId);
+            if (!stream) return;
+
+            const idInput = document.getElementById('edit-stream-id');
+            const nameInput = document.getElementById('edit-stream-name');
+            const categoryInput = document.getElementById('edit-stream-category');
+            const typeInput = document.getElementById('edit-stream-type');
+            const urlInput = document.getElementById('edit-stream-url');
+            const hiddenInput = document.getElementById('edit-stream-hidden');
+
+            if (idInput) idInput.value = stream.id;
+            if (nameInput) nameInput.value = stream.name || '';
+            if (categoryInput) categoryInput.value = stream.category || 'General';
+            if (typeInput) typeInput.value = stream.type || 'hls';
+            if (urlInput) {
+                urlInput.value = stream.url || '';
+                urlInput.readOnly = (stream.type === 'notes' || stream.type === 'safety');
+            }
+            if (hiddenInput) hiddenInput.checked = !!stream.hiddenFromPicker;
+
+            const modal = document.getElementById('edit-stream-modal');
+            if (modal) modal.classList.add('open');
+        }
+
+        function closeEditStreamModal() {
+            const modal = document.getElementById('edit-stream-modal');
+            if (modal) modal.classList.remove('open');
+        }
+
+        function closeEditStreamOnOverlay(event) {
+            if (event.target === document.getElementById('edit-stream-modal')) {
+                closeEditStreamModal();
+            }
+        }
+
+        function handleSaveEditedStream(event) {
+            event.preventDefault();
+            const id = document.getElementById('edit-stream-id').value;
+            const nameInput = document.getElementById('edit-stream-name');
+            const categoryInput = document.getElementById('edit-stream-category');
+            const typeInput = document.getElementById('edit-stream-type');
+            const urlInput = document.getElementById('edit-stream-url');
+            const hiddenInput = document.getElementById('edit-stream-hidden');
+
+            const stream = appState.streams.find(s => s.id === id);
+            if (!stream) {
+                closeEditStreamModal();
+                return;
+            }
+
+            const name = nameInput.value.trim().substring(0, 100);
+            const category = categoryInput ? categoryInput.value.trim().substring(0, 50) || 'General' : 'General';
+            const type = typeInput.value.toLowerCase().trim();
+            const rawUrl = urlInput.value.trim();
+
+            if (!name || !rawUrl) return;
+
+            const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes', 'safety'];
+            if (!VALID_TYPES.includes(type)) {
+                alert('Invalid stream type selected.');
+                return;
+            }
+
+            const safeUrl = sanitizeUrl(rawUrl, type);
+            if (safeUrl === 'about:blank' && type !== 'notes' && type !== 'weather' && type !== 'safety') {
+                alert('Please enter a valid HTTP or HTTPS stream URL.');
+                return;
+            }
+
+            const wasActive = stream.active;
+            const prevType = stream.type;
+            const prevUrl = stream.url;
+
+            stream.name = name;
+            stream.category = category;
+            stream.type = type;
+            stream.url = safeUrl;
+            stream.hiddenFromPicker = hiddenInput ? !!hiddenInput.checked : false;
+
+            persistState();
+            populateSettings();
+            populateSidebarCategories();
+            renderSidebarStreams();
+
+            // If this stream was currently active and playing in the grid, refresh it so edits reflect immediately
+            if (wasActive) {
+                if (prevType !== type || prevUrl !== safeUrl) {
+                    renderActiveStreams();
+                } else {
+                    const titleEl = document.querySelector(`#stream-card-${stream.id} .stream-title`);
+                    if (titleEl) titleEl.innerText = name;
+                }
+            }
+
+            closeEditStreamModal();
+        }
+
         function resetToSystemDefaults() {
             if (confirm("Are you sure you want to reset all configurations? This will wipe your settings and custom streams.")) {
                 removeStoredItem('stream_layout');
                 removeStoredItem('user_streams');
                 removeStoredItem('active_stream_ids');
+                removeStoredItem('hidden_stream_ids');
                 removeStoredItem('stream_order');
                 removeStoredItem('location_config');
                 removeStoredItem('rotator_config');
