@@ -497,7 +497,290 @@
         let weatherForecastPromise = null;
         let weatherForecastTimestamp = 0;
         
-        function fetchWeatherForecast(location, forceRefresh = false) {
+        // Zip code neighborhood localization via OpenStreetMap Nominatim with Zippopotam fallback
+        async function resolveZipcodeToNeighborhood(zip) {
+            const cleaned = zip.trim();
+            if (!/^\d{5}$/.test(cleaned)) return null;
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500);
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?postalcode=${cleaned}&country=US&format=json&addressdetails=1`, {
+                    headers: { 'User-Agent': 'MatrixStreamConsole/2.1' },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        const item = data[0];
+                        const addr = item.address || {};
+                        const neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.residential;
+                        const city = addr.city || addr.town || addr.village || addr.county || '';
+                        const state = addr.state || '';
+                        
+                        let localizedName = '';
+                        if (neighborhood && city) {
+                            localizedName = `${neighborhood}, ${city}`;
+                        } else if (neighborhood && state) {
+                            localizedName = `${neighborhood}, ${state}`;
+                        } else if (city && state) {
+                            localizedName = `${city}, ${state}`;
+                        } else if (item.display_name) {
+                            localizedName = item.display_name.split(',').slice(0, 2).join(',').trim();
+                        }
+
+                        if (localizedName) {
+                            return {
+                                name: localizedName,
+                                latitude: parseFloat(item.lat),
+                                longitude: parseFloat(item.lon)
+                            };
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Geocoding] Nominatim zipcode lookup failed, trying fallback:', e);
+            }
+
+            // Fallback to Zippopotam
+            try {
+                const zRes = await fetch(`https://api.zippopotam.us/us/${cleaned}`);
+                if (zRes.ok) {
+                    const zData = await zRes.json();
+                    if (zData && zData.places && zData.places.length > 0) {
+                        const p = zData.places[0];
+                        const city = p['place name'];
+                        const state = p['state abbreviation'] || p['state'];
+                        return {
+                            name: `${city}, ${state}`,
+                            latitude: parseFloat(p.latitude),
+                            longitude: parseFloat(p.longitude)
+                        };
+                    }
+                }
+            } catch (e) {
+                console.warn('[Geocoding] Zippopotam lookup failed:', e);
+            }
+
+            return null;
+        }
+
+        // UV Index categorization & styling
+        function getUvCategory(uv) {
+            if (uv === null || uv === undefined || isNaN(uv)) return { val: '--', text: 'N/A', color: '#9ca3af', level: 'unknown', badgeBg: 'rgba(156, 163, 175, 0.15)' };
+            const num = Math.round(uv * 10) / 10;
+            if (num < 3) return { val: num, text: `${num} (Low)`, color: '#22c55e', level: 'low', badgeBg: 'rgba(34, 197, 94, 0.15)' };
+            if (num < 6) return { val: num, text: `${num} (Mod)`, color: '#eab308', level: 'moderate', badgeBg: 'rgba(234, 179, 8, 0.15)' };
+            if (num < 8) return { val: num, text: `${num} (High)`, color: '#f97316', level: 'high', badgeBg: 'rgba(249, 115, 22, 0.15)' };
+            if (num < 11) return { val: num, text: `${num} (Very High)`, color: '#ef4444', level: 'very-high', badgeBg: 'rgba(239, 68, 68, 0.15)' };
+            return { val: num, text: `${num} (Extreme)`, color: '#a855f7', level: 'extreme', badgeBg: 'rgba(168, 85, 247, 0.15)' };
+        }
+
+        // Air Quality (US AQI) categorization & styling
+        function getAqiCategory(aqi) {
+            if (aqi === null || aqi === undefined || isNaN(aqi)) return { val: '--', text: 'N/A', color: '#9ca3af', level: 'unknown', badgeBg: 'rgba(156, 163, 175, 0.15)' };
+            const val = Math.round(aqi);
+            if (val <= 50) return { val, text: `${val} (Good)`, color: '#22c55e', level: 'good', badgeBg: 'rgba(34, 197, 94, 0.15)' };
+            if (val <= 100) return { val, text: `${val} (Mod)`, color: '#eab308', level: 'moderate', badgeBg: 'rgba(234, 179, 8, 0.15)' };
+            if (val <= 150) return { val, text: `${val} (Sensitive)`, color: '#f97316', level: 'sensitive', badgeBg: 'rgba(249, 115, 22, 0.15)' };
+            if (val <= 200) return { val, text: `${val} (Unhealthy)`, color: '#ef4444', level: 'unhealthy', badgeBg: 'rgba(239, 68, 68, 0.15)' };
+            if (val <= 300) return { val, text: `${val} (Very Unhealthy)`, color: '#a855f7', level: 'very-unhealthy', badgeBg: 'rgba(168, 85, 247, 0.15)' };
+            return { val, text: `${val} (Hazardous)`, color: '#881337', level: 'hazardous', badgeBg: 'rgba(136, 19, 55, 0.25)' };
+        }
+
+        // Google Weather-style Animated Weather Frog Mascot ("Froggy") SVG generator
+        function generateWeatherFrogSvg(code, isDay, temp, uv, aqi) {
+            const isRain = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code);
+            const isSnow = [71, 73, 75, 77, 85, 86].includes(code);
+            const isStorm = [95, 96, 99].includes(code);
+            const isFog = [45, 48].includes(code);
+            const isClearDay = isDay && (code === 0 || code === 1);
+            const isClearNight = !isDay && (code === 0 || code === 1);
+
+            let skyGrad = "";
+            if (isStorm) {
+                skyGrad = '<stop offset="0%" stop-color="#1e1b4b"/><stop offset="50%" stop-color="#311042"/><stop offset="100%" stop-color="#0f172a"/>';
+            } else if (isRain) {
+                skyGrad = '<stop offset="0%" stop-color="#1e293b"/><stop offset="60%" stop-color="#334155"/><stop offset="100%" stop-color="#0f172a"/>';
+            } else if (isSnow) {
+                skyGrad = '<stop offset="0%" stop-color="#0f172a"/><stop offset="50%" stop-color="#1e293b"/><stop offset="100%" stop-color="#0369a1"/>';
+            } else if (isClearNight) {
+                skyGrad = '<stop offset="0%" stop-color="#020617"/><stop offset="50%" stop-color="#0b1329"/><stop offset="100%" stop-color="#1e1b4b"/>';
+            } else if (isClearDay) {
+                skyGrad = '<stop offset="0%" stop-color="#0284c7"/><stop offset="45%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#06b6d4"/>';
+            } else {
+                skyGrad = '<stop offset="0%" stop-color="#334155"/><stop offset="50%" stop-color="#475569"/><stop offset="100%" stop-color="#1e293b"/>';
+            }
+
+            let celestial = "";
+            if (isClearDay || (isDay && !isRain && !isStorm && !isSnow)) {
+                celestial = `
+                    <g class="frog-sun">
+                        <circle cx="265" cy="40" r="22" fill="#f59e0b" opacity="0.3" filter="blur(8px)"/>
+                        <circle cx="265" cy="40" r="16" fill="#fbbf24"/>
+                        <circle cx="265" cy="40" r="24" fill="none" stroke="#fde047" stroke-width="2" stroke-dasharray="4 6" class="sun-rays"/>
+                    </g>
+                    <path d="M 40 38 Q 55 24 75 32 Q 90 22 105 32 Q 120 38 115 48 Q 40 48 40 38 Z" fill="#ffffff" opacity="0.45" class="cloud-drift"/>
+                    <path d="M 190 28 Q 205 18 220 25 Q 235 16 250 25 Q 260 30 255 40 Q 190 40 190 28 Z" fill="#ffffff" opacity="0.3" class="cloud-drift-slow"/>
+                `;
+            } else if (!isDay) {
+                celestial = `
+                    <g class="frog-moon">
+                        <circle cx="265" cy="40" r="16" fill="#f8fafc"/>
+                        <circle cx="258" cy="36" r="13" fill="#0b1329"/>
+                        <circle cx="268" cy="42" r="2" fill="#cbd5e1" opacity="0.5"/>
+                    </g>
+                    <circle cx="50" cy="30" r="1.5" fill="#f8fafc" class="star star-1"/>
+                    <circle cx="90" cy="20" r="1" fill="#fde047" class="star star-2"/>
+                    <circle cx="130" cy="45" r="1.5" fill="#f8fafc" class="star star-3"/>
+                    <circle cx="180" cy="25" r="1.2" fill="#f8fafc" class="star star-4"/>
+                    <circle cx="220" cy="50" r="1.5" fill="#fde047" class="star star-1"/>
+                `;
+            }
+
+            let weatherEffects = "";
+            if (isStorm) {
+                weatherEffects = `
+                    <path d="M 130 15 L 122 35 L 132 37 L 120 62" stroke="#fde047" stroke-width="2.5" fill="none" stroke-linejoin="round" class="lightning-bolt"/>
+                    <line x1="60" y1="10" x2="45" y2="70" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 8" class="rain-streak-1" opacity="0.6"/>
+                    <line x1="120" y1="5" x2="105" y2="75" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="8 10" class="rain-streak-2" opacity="0.7"/>
+                    <line x1="200" y1="15" x2="185" y2="85" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 8" class="rain-streak-3" opacity="0.6"/>
+                    <line x1="260" y1="8" x2="245" y2="78" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="7 9" class="rain-streak-1" opacity="0.6"/>
+                `;
+            } else if (isRain) {
+                weatherEffects = `
+                    <line x1="40" y1="10" x2="30" y2="60" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 8" class="rain-streak-1" opacity="0.6"/>
+                    <line x1="90" y1="5" x2="80" y2="65" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="7 9" class="rain-streak-2" opacity="0.7"/>
+                    <line x1="150" y1="12" x2="140" y2="72" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 8" class="rain-streak-3" opacity="0.6"/>
+                    <line x1="210" y1="8" x2="200" y2="68" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="8 10" class="rain-streak-1" opacity="0.7"/>
+                    <line x1="270" y1="15" x2="260" y2="75" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 8" class="rain-streak-2" opacity="0.6"/>
+                    <ellipse cx="90" cy="158" rx="14" ry="4" fill="none" stroke="#38bdf8" stroke-width="1" class="water-ripple" opacity="0.5"/>
+                    <ellipse cx="230" cy="158" rx="18" ry="5" fill="none" stroke="#38bdf8" stroke-width="1" class="water-ripple" opacity="0.5"/>
+                `;
+            } else if (isSnow) {
+                weatherEffects = `
+                    <circle cx="50" cy="20" r="2.5" fill="#f8fafc" class="snowflake snow-1" opacity="0.8"/>
+                    <circle cx="95" cy="45" r="2" fill="#f8fafc" class="snowflake snow-2" opacity="0.9"/>
+                    <circle cx="140" cy="15" r="3" fill="#f8fafc" class="snowflake snow-3" opacity="0.8"/>
+                    <circle cx="205" cy="35" r="2" fill="#f8fafc" class="snowflake snow-1" opacity="0.7"/>
+                    <circle cx="265" cy="25" r="2.5" fill="#f8fafc" class="snowflake snow-2" opacity="0.9"/>
+                    <ellipse cx="160" cy="156" rx="85" ry="12" fill="#e2e8f0" opacity="0.6"/>
+                `;
+            }
+
+            let basePlatform = "";
+            if (isSnow) {
+                basePlatform = `
+                    <ellipse cx="160" cy="152" rx="60" ry="12" fill="#ffffff" opacity="0.85"/>
+                    <circle cx="222" cy="144" r="9" fill="#f8fafc"/>
+                    <circle cx="222" cy="132" r="6" fill="#f8fafc"/>
+                    <circle cx="220" cy="131" r="1" fill="#0f172a"/>
+                    <circle cx="224" cy="131" r="1" fill="#0f172a"/>
+                    <path d="M 221 134 L 217 135" stroke="#f97316" stroke-width="1.5" stroke-linecap="round"/>
+                `;
+            } else if (!isDay) {
+                basePlatform = `
+                    <rect x="90" y="142" width="140" height="18" rx="9" fill="#78350f" opacity="0.8"/>
+                    <ellipse cx="230" cy="151" rx="8" ry="9" fill="#92400e"/>
+                    <circle cx="85" cy="120" r="2" fill="#fef08a" class="firefly firefly-1"/>
+                    <circle cx="235" cy="105" r="2.5" fill="#fef08a" class="firefly firefly-2"/>
+                `;
+            } else {
+                basePlatform = `
+                    <ellipse cx="160" cy="150" rx="65" ry="14" fill="#15803d"/>
+                    <path d="M 160 150 L 225 150 A 65 14 0 0 1 200 162 Z" fill="#166534"/>
+                    <ellipse cx="108" cy="144" rx="7" ry="5" fill="#f472b6"/>
+                    <circle cx="108" cy="144" r="2.5" fill="#fef08a"/>
+                `;
+            }
+
+            let frogProps = "";
+            if (isClearDay) {
+                frogProps = `
+                    <rect x="134" y="68" width="22" height="13" rx="3.5" fill="#0f172a"/>
+                    <rect x="164" y="68" width="22" height="13" rx="3.5" fill="#0f172a"/>
+                    <rect x="154" y="72" width="12" height="3" fill="#0f172a"/>
+                    <line x1="138" y1="71" x2="148" y2="78" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="168" y1="71" x2="178" y2="78" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+                    <rect x="208" y="132" width="12" height="16" rx="2" fill="#fed7aa" opacity="0.9"/>
+                    <line x1="214" y1="126" x2="218" y2="134" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="214" cy="130" r="4" fill="#fde047"/>
+                `;
+            } else if (isRain) {
+                frogProps = `
+                    <path d="M 175 125 Q 185 105 178 70" stroke="#15803d" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    <path d="M 130 65 Q 175 35 220 65 Q 175 55 130 65 Z" fill="#22c55e" stroke="#16a34a" stroke-width="1.5"/>
+                    <ellipse cx="128" cy="146" rx="10" ry="7" fill="#eab308"/>
+                    <ellipse cx="192" cy="146" rx="10" ry="7" fill="#eab308"/>
+                `;
+            } else if (isStorm) {
+                frogProps = `
+                    <rect x="186" y="80" width="12" height="65" rx="4" fill="#f1f5f9"/>
+                    <path d="M 140 85 Q 192 30 245 85 Z" fill="#ef4444"/>
+                    <circle cx="170" cy="65" r="4" fill="#ffffff"/>
+                    <circle cx="215" cy="65" r="5" fill="#ffffff"/>
+                    <circle cx="192" cy="50" r="3.5" fill="#ffffff"/>
+                `;
+            } else if (isSnow) {
+                frogProps = `
+                    <path d="M 144 68 Q 160 42 176 68 Z" fill="#dc2626"/>
+                    <rect x="140" y="65" width="40" height="7" rx="3" fill="#ffffff"/>
+                    <circle cx="160" cy="42" r="5" fill="#ffffff"/>
+                    <rect x="146" y="108" width="28" height="8" rx="3" fill="#dc2626"/>
+                    <rect x="166" y="112" width="8" height="18" rx="2" fill="#dc2626"/>
+                    <line x1="148" y1="112" x2="172" y2="112" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 3"/>
+                    <line x1="168" y1="116" x2="172" y2="128" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 3"/>
+                `;
+            } else if (!isDay) {
+                frogProps = `
+                    <rect x="194" y="120" width="12" height="16" rx="2" fill="#78350f"/>
+                    <rect x="196" y="122" width="8" height="12" rx="1" fill="#fef08a"/>
+                    <circle cx="200" cy="128" r="10" fill="#fef08a" opacity="0.35" filter="blur(4px)"/>
+                    <path d="M 196 120 Q 200 114 204 120" stroke="#78350f" stroke-width="1.5" fill="none"/>
+                `;
+            }
+
+            return `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" class="froggy-svg">
+              <defs>
+                <linearGradient id="skyGradDynamic" x1="0" y1="0" x2="0" y2="1">
+                  ${skyGrad}
+                </linearGradient>
+              </defs>
+              <rect width="320" height="180" fill="url(#skyGradDynamic)" />
+              ${celestial}
+              ${weatherEffects}
+              ${basePlatform}
+              <g class="frog-character">
+                <ellipse cx="126" cy="142" rx="14" ry="8" fill="#16a34a"/>
+                <ellipse cx="194" cy="142" rx="14" ry="8" fill="#16a34a"/>
+                <ellipse cx="160" cy="120" rx="34" ry="28" fill="#22c55e"/>
+                <ellipse cx="160" cy="124" rx="22" ry="18" fill="#bbf7d0"/>
+                <circle cx="160" cy="94" r="26" fill="#22c55e"/>
+                <circle cx="144" cy="74" r="13" fill="#22c55e"/>
+                <circle cx="176" cy="74" r="13" fill="#22c55e"/>
+                <circle cx="144" cy="74" r="9.5" fill="#ffffff"/>
+                <circle cx="176" cy="74" r="9.5" fill="#ffffff"/>
+                <circle cx="145" cy="74" r="4.5" fill="#0f172a" class="frog-pupil"/>
+                <circle cx="143.5" cy="72.5" r="1.5" fill="#ffffff"/>
+                <circle cx="175" cy="74" r="4.5" fill="#0f172a" class="frog-pupil"/>
+                <circle cx="173.5" cy="72.5" r="1.5" fill="#ffffff"/>
+                <g class="frog-eyelids">
+                  <ellipse cx="144" cy="74" rx="10" ry="10" fill="#16a34a" class="eyelid eyelid-left"/>
+                  <ellipse cx="176" cy="74" rx="10" ry="10" fill="#16a34a" class="eyelid eyelid-right"/>
+                </g>
+                <ellipse cx="138" cy="98" rx="5.5" ry="3.5" fill="#f472b6" opacity="0.65"/>
+                <ellipse cx="182" cy="98" rx="5.5" ry="3.5" fill="#f472b6" opacity="0.65"/>
+                <path d="M 151 100 Q 160 107 169 100" stroke="#14532d" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                <ellipse cx="140" cy="122" rx="6" ry="10" fill="#16a34a"/>
+                <ellipse cx="180" cy="122" rx="6" ry="10" fill="#16a34a"/>
+              </g>
+              ${frogProps}
+            </svg>`;
+        }
+        
+        async function fetchWeatherForecast(location, forceRefresh = false) {
             const cityName = location.split(',')[0].trim();
             const now = Date.now();
             const isFresh = (now - weatherForecastTimestamp) < WEATHER_CACHE_TTL;
@@ -510,36 +793,65 @@
             }
             
             weatherForecastLocation = cityName;
-            weatherForecastPromise = fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Geocoding failed');
-                    return response.json();
-                })
-                .then(geoData => {
+
+            weatherForecastPromise = (async () => {
+                let lat, lon, localizedName = null;
+
+                // 1. Check if location is a 5-digit US zipcode
+                if (/^\d{5}$/.test(cityName)) {
+                    const resolved = await resolveZipcodeToNeighborhood(cityName);
+                    if (resolved) {
+                        lat = resolved.latitude;
+                        lon = resolved.longitude;
+                        localizedName = resolved.name;
+                    }
+                }
+
+                // 2. If not a zipcode or zipcode lookup missed, query Open-Meteo geocoding
+                if (!lat || !lon) {
+                    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`);
+                    if (!geoRes.ok) throw new Error('Geocoding failed');
+                    const geoData = await geoRes.json();
                     if (!geoData.results || geoData.results.length === 0) {
                         throw new Error('City not found');
                     }
                     const result = geoData.results[0];
-                    const lat = result.latitude;
-                    const lon = result.longitude;
-                    
-                    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`);
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Forecast failed');
-                    return response.json();
-                })
-                .then(data => {
-                    weatherForecastCache = data;
-                    weatherForecastTimestamp = Date.now();
-                    weatherForecastPromise = null;
-                    return data;
-                })
-                .catch(err => {
-                    // Reset promise so we can retry on error
-                    weatherForecastPromise = null;
-                    throw err;
-                });
+                    lat = result.latitude;
+                    lon = result.longitude;
+                    localizedName = result.admin1 ? `${result.name}, ${result.admin1}` : result.name;
+                }
+
+                // 3. Concurrently fetch extended weather forecast (hourly, UV, daily) and Air Quality (AQI)
+                const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+                const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10`;
+
+                const [forecastRes, aqiRes] = await Promise.allSettled([
+                    fetch(forecastUrl).then(r => {
+                        if (!r.ok) throw new Error('Forecast failed');
+                        return r.json();
+                    }),
+                    fetch(aqiUrl).then(r => {
+                        if (!r.ok) throw new Error('AQI failed');
+                        return r.json();
+                    })
+                ]);
+
+                if (forecastRes.status !== 'fulfilled' || !forecastRes.value) {
+                    throw new Error('Forecast fetch failed');
+                }
+
+                const data = forecastRes.value;
+                data.localizedLocation = localizedName;
+                data.aqi = (aqiRes.status === 'fulfilled' && aqiRes.value?.current) ? aqiRes.value.current : { us_aqi: null, pm2_5: null, pm10: null };
+
+                weatherForecastCache = data;
+                weatherForecastTimestamp = Date.now();
+                weatherForecastPromise = null;
+                return data;
+            })().catch(err => {
+                weatherForecastPromise = null;
+                throw err;
+            });
                 
             return weatherForecastPromise;
         }
@@ -717,62 +1029,180 @@
         function renderWeatherPanel() {
             fetchWeatherForecast(appState.location)
                 .then(data => {
-                    // Populate current weather details
+                    const current = data.current;
+                    const daily = data.daily;
+                    const hourly = data.hourly;
+                    const aqi = data.aqi || {};
+                    const isDay = current.is_day === 1;
+                    const weatherCode = current.weather_code;
+                    const currentTemp = Math.round(current.temperature_2m);
+                    const feelsLike = Math.round(current.apparent_temperature || current.temperature_2m);
+                    const high = Math.round(daily.temperature_2m_max[0]);
+                    const low = Math.round(daily.temperature_2m_min[0]);
+                    const desc = getWeatherDescription(weatherCode);
+
+                    // Localized display location
+                    const displayLocation = data.localizedLocation || appState.location;
                     const cityEl = document.getElementById('wf-city');
-                    if (cityEl) cityEl.innerText = appState.location;
-                    
-                    const tempEl = document.getElementById('wf-temp');
-                    if (tempEl) tempEl.innerText = `${Math.round(data.current.temperature_2m)}°F`;
-                    
+                    if (cityEl) cityEl.innerText = displayLocation;
+
                     const descEl = document.getElementById('wf-desc');
-                    if (descEl) descEl.innerText = getWeatherDescription(data.current.weather_code);
-                    
-                    const iconEl = document.getElementById('wf-current-icon');
-                    if (iconEl) iconEl.innerText = getWeatherEmoji(data.current.weather_code);
-                    
-                    const windEl = document.getElementById('wf-wind');
-                    if (windEl) windEl.innerText = `${Math.round(data.current.wind_speed_10m)} mph`;
-                    
-                    const humidityEl = document.getElementById('wf-humidity');
-                    if (humidityEl) humidityEl.innerText = `${data.current.relative_humidity_2m}%`;
-                    
-                    const high = Math.round(data.daily.temperature_2m_max[0]);
-                    const low = Math.round(data.daily.temperature_2m_min[0]);
+                    if (descEl) descEl.innerText = desc;
+
+                    const tempEl = document.getElementById('wf-temp');
+                    if (tempEl) tempEl.innerText = `${currentTemp}°F`;
+
+                    const feelsEl = document.getElementById('wf-feelslike');
+                    if (feelsEl) feelsEl.innerText = `${feelsLike}°F`;
+
                     const highlowEl = document.getElementById('wf-highlow');
                     if (highlowEl) highlowEl.innerText = `${high}° / ${low}°`;
-                    
-                    // Populate daily forecast list
+
+                    // Inject Google Weather-style Animated Froggy Mascot Scene
+                    const frogWrap = document.getElementById('wf-frog-wrap');
+                    if (frogWrap) {
+                        frogWrap.innerHTML = generateWeatherFrogSvg(weatherCode, isDay, currentTemp, current.uv_index, aqi.us_aqi);
+                    }
+
+                    // UV & AQI Header Pills
+                    const uvInfo = getUvCategory(current.uv_index);
+                    const aqiInfo = getAqiCategory(aqi.us_aqi);
+
+                    const uvBadge = document.getElementById('wf-uv-badge');
+                    if (uvBadge) {
+                        uvBadge.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: ${uvInfo.color}; display: inline-block;"></span> UV: ${uvInfo.text}`;
+                        uvBadge.style.borderColor = uvInfo.color;
+                    }
+
+                    const aqiBadge = document.getElementById('wf-aqi-badge');
+                    if (aqiBadge) {
+                        aqiBadge.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: ${aqiInfo.color}; display: inline-block;"></span> AQI: ${aqiInfo.text}`;
+                        aqiBadge.style.borderColor = aqiInfo.color;
+                    }
+
+                    // Environmental Metrics Cards
+                    const uvValEl = document.getElementById('wf-metric-uv-val');
+                    if (uvValEl) uvValEl.innerText = uvInfo.val;
+                    const uvTagEl = document.getElementById('wf-metric-uv-tag');
+                    if (uvTagEl) {
+                        uvTagEl.innerText = uvInfo.level.toUpperCase();
+                        uvTagEl.style.backgroundColor = uvInfo.badgeBg;
+                        uvTagEl.style.color = uvInfo.color;
+                    }
+                    const uvSubEl = document.getElementById('wf-metric-uv-sub');
+                    if (uvSubEl) {
+                        const maxUv = daily.uv_index_max && daily.uv_index_max.length > 0 ? Math.round(daily.uv_index_max[0] * 10) / 10 : '--';
+                        uvSubEl.innerText = `Max UV today: ${maxUv}`;
+                    }
+
+                    const aqiValEl = document.getElementById('wf-metric-aqi-val');
+                    if (aqiValEl) aqiValEl.innerText = aqiInfo.val;
+                    const aqiTagEl = document.getElementById('wf-metric-aqi-tag');
+                    if (aqiTagEl) {
+                        aqiTagEl.innerText = aqiInfo.level.toUpperCase();
+                        aqiTagEl.style.backgroundColor = aqiInfo.badgeBg;
+                        aqiTagEl.style.color = aqiInfo.color;
+                    }
+                    const aqiSubEl = document.getElementById('wf-metric-aqi-sub');
+                    if (aqiSubEl) {
+                        const pm25 = aqi.pm2_5 ? Math.round(aqi.pm2_5 * 10) / 10 : '--';
+                        aqiSubEl.innerText = `PM2.5: ${pm25} µg/m³`;
+                    }
+
+                    const windEl = document.getElementById('wf-wind');
+                    if (windEl) windEl.innerText = `${Math.round(current.wind_speed_10m)} mph`;
+                    const humidityEl = document.getElementById('wf-humidity');
+                    if (humidityEl) humidityEl.innerText = `${current.relative_humidity_2m}%`;
+
+                    const sunriseEl = document.getElementById('wf-sunrise');
+                    if (sunriseEl && daily.sunrise && daily.sunrise[0]) {
+                        const srDate = new Date(daily.sunrise[0]);
+                        sunriseEl.innerText = srDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    }
+                    const sunsetEl = document.getElementById('wf-sunset');
+                    if (sunsetEl && daily.sunset && daily.sunset[0]) {
+                        const ssDate = new Date(daily.sunset[0]);
+                        sunsetEl.innerText = ssDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    }
+
+                    // Hourly Forecast Strip (Next 24 Hours)
+                    const hourlyTrack = document.getElementById('wf-hourly-track');
+                    if (hourlyTrack && hourly && hourly.time) {
+                        hourlyTrack.innerHTML = '';
+                        const nowTime = Date.now();
+                        let startHourIdx = 0;
+                        for (let i = 0; i < hourly.time.length; i++) {
+                            const t = new Date(hourly.time[i]).getTime();
+                            if (t >= (nowTime - 3600000)) {
+                                startHourIdx = i;
+                                break;
+                            }
+                        }
+
+                        const endHourIdx = Math.min(hourly.time.length, startHourIdx + 24);
+                        const frag = document.createDocumentFragment();
+
+                        for (let i = startHourIdx; i < endHourIdx; i++) {
+                            const dateObj = new Date(hourly.time[i]);
+                            const isNow = (i === startHourIdx);
+                            const timeLabel = isNow ? 'Now' : dateObj.toLocaleTimeString([], { hour: 'numeric' });
+                            const hCode = hourly.weather_code[i];
+                            const hEmoji = getWeatherEmoji(hCode);
+                            const hTemp = Math.round(hourly.temperature_2m[i]);
+                            const precipProb = hourly.precipitation_probability ? hourly.precipitation_probability[i] : 0;
+
+                            const card = document.createElement('div');
+                            card.className = `weather-hourly-card ${isNow ? 'active-hour' : ''}`;
+                            card.innerHTML = `
+                                <span class="wh-time">${timeLabel}</span>
+                                <span class="wh-icon">${hEmoji}</span>
+                                <span class="wh-temp">${hTemp}°</span>
+                                ${precipProb > 0 ? `<span class="wh-precip">💧 ${precipProb}%</span>` : ''}
+                            `;
+                            frag.appendChild(card);
+                        }
+                        hourlyTrack.appendChild(frag);
+                    }
+
+                    // 7-Day Extended Forecast with Temperature Spread Bars
                     const dailyGrid = document.getElementById('wf-daily-grid');
-                    if (dailyGrid) {
+                    if (dailyGrid && daily && daily.time) {
                         dailyGrid.innerHTML = '';
-                        
-                        // Loop through 7 days (starting tomorrow)
-                        for (let i = 1; i < data.daily.time.length; i++) {
-                            const dateStr = data.daily.time[i];
+                        const weekMin = Math.min(...daily.temperature_2m_min);
+                        const weekMax = Math.max(...daily.temperature_2m_max);
+                        const range = Math.max(1, weekMax - weekMin);
+
+                        const frag = document.createDocumentFragment();
+                        for (let i = 0; i < daily.time.length; i++) {
+                            const dateStr = daily.time[i];
                             const dateObj = new Date(dateStr + 'T00:00:00');
-                            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                            const dayName = (i === 0) ? 'Today' : (i === 1) ? 'Tomorrow' : dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                             
-                            const code = data.daily.weather_code[i];
+                            const code = daily.weather_code[i];
                             const emoji = getWeatherEmoji(code);
                             const desc = getWeatherDescription(code);
-                            const maxTemp = Math.round(data.daily.temperature_2m_max[i]);
-                            const minTemp = Math.round(data.daily.temperature_2m_min[i]);
-                            
-                            const item = document.createElement('div');
-                            item.className = 'weather-daily-item';
-                            item.innerHTML = `
-                                <div class="wdi-day">${dayName}</div>
-                                <div class="wdi-icon-desc">
-                                    <span class="wdi-emoji">${emoji}</span>
-                                    <span class="wdi-desc">${desc}</span>
-                                </div>
-                                <div class="wdi-temps">
-                                    <span class="wdi-temp-max">${maxTemp}°</span>
-                                    <span class="wdi-temp-min">${minTemp}°</span>
+                            const maxTemp = Math.round(daily.temperature_2m_max[i]);
+                            const minTemp = Math.round(daily.temperature_2m_min[i]);
+
+                            const leftPct = Math.max(0, Math.round(((minTemp - weekMin) / range) * 100));
+                            const widthPct = Math.max(8, Math.round(((maxTemp - minTemp) / range) * 100));
+
+                            const row = document.createElement('div');
+                            row.className = 'weather-daily-row';
+                            row.innerHTML = `
+                                <span class="wdr-day">${dayName}</span>
+                                <span class="wdr-icon" title="${desc}">${emoji}</span>
+                                <div class="wdr-bar-wrap">
+                                    <span class="wdr-temp-min">${minTemp}°</span>
+                                    <div class="wdr-bar-bg">
+                                        <div class="wdr-bar-fill" style="left: ${leftPct}%; width: ${widthPct}%;"></div>
+                                    </div>
+                                    <span class="wdr-temp-max">${maxTemp}°</span>
                                 </div>
                             `;
-                            dailyGrid.appendChild(item);
+                            frag.appendChild(row);
                         }
+                        dailyGrid.appendChild(frag);
                     }
                 })
                 .catch(err => {
@@ -2138,12 +2568,26 @@
             renderSidebarStreams();
         }
 
-        function handleSaveLocation(event) {
+        async function handleSaveLocation(event) {
             event.preventDefault();
-            const locationVal = document.getElementById('location-input').value.trim();
+            let locationVal = document.getElementById('location-input').value.trim();
             const timezoneVal = document.getElementById('timezone-select').value;
             
             if (!locationVal) return;
+
+            // Localize 5-digit US zip codes down to neighborhood/city
+            if (/^\d{5}$/.test(locationVal)) {
+                try {
+                    const resolved = await resolveZipcodeToNeighborhood(locationVal);
+                    if (resolved && resolved.name) {
+                        locationVal = resolved.name;
+                        const inputEl = document.getElementById('location-input');
+                        if (inputEl) inputEl.value = locationVal;
+                    }
+                } catch (e) {
+                    console.warn('[Location] Failed to localize zipcode:', e);
+                }
+            }
             
             appState.location = locationVal;
             appState.timezone = timezoneVal;
@@ -2154,7 +2598,7 @@
             updateWeatherBadge(appState.location);
             renderWeatherPanel();
             
-            alert('Location settings updated successfully!');
+            alert(`Location settings updated to ${locationVal}!`);
             closeSettings();
         }
 
@@ -2649,12 +3093,48 @@
                     const temp = Math.round(data.current.temperature_2m);
                     const code = data.current.weather_code;
                     const desc = getWeatherDescription(code);
-                    const emoji = getWeatherEmoji(code);
                     const isDay = data.current.is_day === 1;
+                    const aqi = data.aqi || {};
+                    const displayLocation = data.localizedLocation || appState.location;
+                    const uvInfo = getUvCategory(data.current.uv_index);
+                    const aqiInfo = getAqiCategory(aqi.us_aqi);
                     
                     const widget = document.getElementById(`weather-cam-widget-${stream.id}`);
                     if (!widget) return;
+
+                    // 1. Google Weather Frog SVG banner
+                    const frogSvg = generateWeatherFrogSvg(code, isDay, temp, data.current.uv_index, aqi.us_aqi);
+
+                    // 2. Hourly timeline pills (next 12 hours)
+                    let hourlyHtml = '';
+                    if (data.hourly && data.hourly.time) {
+                        const nowTime = Date.now();
+                        let startHourIdx = 0;
+                        for (let i = 0; i < data.hourly.time.length; i++) {
+                            const t = new Date(data.hourly.time[i]).getTime();
+                            if (t >= (nowTime - 3600000)) {
+                                startHourIdx = i;
+                                break;
+                            }
+                        }
+                        const endHourIdx = Math.min(data.hourly.time.length, startHourIdx + 12);
+                        for (let i = startHourIdx; i < endHourIdx; i++) {
+                            const dateObj = new Date(data.hourly.time[i]);
+                            const isNow = (i === startHourIdx);
+                            const timeLabel = isNow ? 'Now' : dateObj.toLocaleTimeString([], { hour: 'numeric' });
+                            const hEmoji = getWeatherEmoji(data.hourly.weather_code[i]);
+                            const hTemp = Math.round(data.hourly.temperature_2m[i]);
+                            hourlyHtml += `
+                                <div class="wc-hourly-pill">
+                                    <span style="color: var(--text-muted);">${timeLabel}</span>
+                                    <span>${hEmoji}</span>
+                                    <span style="font-weight: 700;">${hTemp}°</span>
+                                </div>
+                            `;
+                        }
+                    }
                     
+                    // 3. 5-day daily forecast cards
                     let forecastHtml = '';
                     for (let i = 1; i <= 5; i++) {
                         const dateStr = data.daily.time[i];
@@ -2680,18 +3160,23 @@
                     }
                     
                     widget.innerHTML = `
+                        <div class="wc-frog-banner">
+                            ${frogSvg}
+                        </div>
                         <div class="wc-header">
                             <div>
-                                <div class="wc-location">${escapeHtml(appState.location)}</div>
+                                <div class="wc-location">${escapeHtml(displayLocation)}</div>
+                                <div style="font-size: 0.8rem; color: var(--accent); font-weight: 600;">${desc}</div>
                             </div>
                             <div style="text-align: right;">
                                 <div class="wc-current-temp">${temp}°F</div>
+                                <div class="wc-badges-row" style="justify-content: flex-end; margin-top: 4px;">
+                                    <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
+                                    <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="wc-current-center">
-                            <span class="wc-cc-icon">${emoji}</span>
-                            <span class="wc-cc-desc">${desc}</span>
-                        </div>
+                        ${hourlyHtml ? `<div class="wc-hourly-row">${hourlyHtml}</div>` : ''}
                         <div class="wc-forecast-grid">
                             ${forecastHtml}
                         </div>
