@@ -1025,9 +1025,24 @@
             return emojis[code] || "☀️";
         }
 
+        // Atmospheric weather theme determination
+        function getWeatherTheme(code, isDay) {
+            const isRain = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code);
+            const isSnow = [71, 73, 75, 77, 85, 86].includes(code);
+            const isStorm = [95, 96, 99].includes(code);
+            const isCloudy = [1, 2, 3, 45, 48].includes(code);
+            
+            if (isStorm) return 'theme-storm';
+            if (isRain) return 'theme-rain';
+            if (isSnow) return 'theme-snow';
+            if (isCloudy) return 'theme-cloudy';
+            if (!isDay) return 'theme-clear-night';
+            return 'theme-sunny';
+        }
+
         // Weather full details forecast panel load
         function renderWeatherPanel() {
-            fetchWeatherForecast(appState.location)
+            return fetchWeatherForecast(appState.location)
                 .then(data => {
                     const current = data.current;
                     const daily = data.daily;
@@ -1058,10 +1073,15 @@
                     const highlowEl = document.getElementById('wf-highlow');
                     if (highlowEl) highlowEl.innerText = `${high}° / ${low}°`;
 
-                    // Inject Google Weather-style Animated Froggy Mascot Scene
-                    const frogWrap = document.getElementById('wf-frog-wrap');
-                    if (frogWrap) {
-                        frogWrap.innerHTML = generateWeatherFrogSvg(weatherCode, isDay, currentTemp, current.uv_index, aqi.us_aqi);
+                    // Apply atmospheric weather theme & hero icon
+                    const theme = getWeatherTheme(weatherCode, isDay);
+                    const heroCard = document.getElementById('wf-hero-card');
+                    if (heroCard) {
+                        heroCard.className = `weather-hero-card ${theme}`;
+                    }
+                    const heroIconEl = document.getElementById('wf-hero-icon');
+                    if (heroIconEl) {
+                        heroIconEl.innerText = getWeatherEmoji(weatherCode);
                     }
 
                     // UV & AQI Header Pills
@@ -1753,7 +1773,9 @@
             
             const isIframe = stream.type === 'iframe';
             const isNotes = stream.type === 'notes';
+            const isWeather = stream.type === 'weather';
             if (isIframe) card.classList.add('stream-iframe-card');
+            if (isWeather) card.classList.add('stream-weather-card');
             
             let controlsHtml = '';
             let headerActionsHtml = '';
@@ -1782,29 +1804,26 @@
                         </button>
                     </div>
                 `;
+            } else if (isWeather) {
+                // Weather stream: No bottom action bar on hover to prevent covering 5-day forecast
+                controlsHtml = '';
+                headerActionsHtml = `
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
+                            ${FULLSCREEN_SVG}
+                        </button>
+                    </div>
+                `;
             } else {
-                const isSnapshotSupported = stream.type === 'hls' || stream.type === 'weather';
+                const isSnapshotSupported = stream.type === 'hls';
                 const snapshotButtonHtml = isSnapshotSupported ? `
                     <button class="control-btn snapshot-btn" data-action="snapshot" title="Capture Snapshot Frame">
                         ${SNAPSHOT_SVG}
                     </button>
                 ` : '';
-                
-                if (stream.type === 'weather') {
-                    controlsHtml = `
-                        <div class="stream-controls">
-                            <span class="control-note">Weather Forecast Cam</span>
-                            <div style="display: flex; gap: 8px;">
-                                ${snapshotButtonHtml}
-                                <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
-                                    ${FULLSCREEN_SVG}
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    controlsHtml = `
-                        <div class="stream-controls">
+
+                controlsHtml = `
+                    <div class="stream-controls">
                             <button class="control-btn play-pause-btn" data-action="play-pause" title="Play/Pause">
                                 ${PLAY_SVG}
                             </button>
@@ -1825,7 +1844,6 @@
                             </div>
                         </div>
                     `;
-                }
             }
             
             const showVolumeInTab = stream.type !== 'weather' && stream.type !== 'iframe' && stream.type !== 'notes';
@@ -3098,14 +3116,17 @@
                     const displayLocation = data.localizedLocation || appState.location;
                     const uvInfo = getUvCategory(data.current.uv_index);
                     const aqiInfo = getAqiCategory(aqi.us_aqi);
+                    const weatherEmoji = getWeatherEmoji(code);
+                    const feelsLike = Math.round(data.current.apparent_temperature || data.current.temperature_2m);
+                    const todayMax = data.daily?.temperature_2m_max ? Math.round(data.daily.temperature_2m_max[0]) : temp;
+                    const todayMin = data.daily?.temperature_2m_min ? Math.round(data.daily.temperature_2m_min[0]) : temp;
+                    const theme = getWeatherTheme(code, isDay);
                     
                     const widget = document.getElementById(`weather-cam-widget-${stream.id}`);
                     if (!widget) return;
+                    widget.className = `weather-cam-widget ${theme}`;
 
-                    // 1. Google Weather Frog SVG banner
-                    const frogSvg = generateWeatherFrogSvg(code, isDay, temp, data.current.uv_index, aqi.us_aqi);
-
-                    // 2. Hourly timeline pills (next 12 hours)
+                    // 1. Hourly timeline pills (next 12 hours)
                     let hourlyHtml = '';
                     if (data.hourly && data.hourly.time) {
                         const nowTime = Date.now();
@@ -3134,7 +3155,7 @@
                         }
                     }
                     
-                    // 3. 5-day daily forecast cards
+                    // 2. 5-day daily forecast cards
                     let forecastHtml = '';
                     for (let i = 1; i <= 5; i++) {
                         const dateStr = data.daily.time[i];
@@ -3167,14 +3188,17 @@
                                     <span class="wc-current-temp">${temp}°F</span>
                                     <span class="wc-desc-tag">${desc}</span>
                                 </div>
-                                <div class="wc-badges-row">
+                                <div class="wc-sub-row">
+                                    <span>H: ${todayMax}° • L: ${todayMin}°</span>
+                                    <span>Feels ${feelsLike}°</span>
+                                </div>
+                            </div>
+                            <div class="wc-header-right">
+                                <div class="wc-main-emoji">${weatherEmoji}</div>
+                                <div class="wc-badges-col">
                                     <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
                                     <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
                                 </div>
-                            </div>
-                            <!-- Small Frog Mascot off to the side -->
-                            <div class="wc-frog-mini" title="Weather Mascot">
-                                ${frogSvg}
                             </div>
                         </div>
                         ${hourlyHtml ? `<div class="wc-hourly-row">${hourlyHtml}</div>` : ''}

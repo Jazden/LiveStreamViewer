@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.4.2">
+    <link rel="stylesheet" href="style.css?v=1.5.0">
 </head>
 <body>
 
@@ -148,8 +148,8 @@
         <!-- Full Weather Forecast Panel -->
         <div id="panel-weather" class="view-panel hidden">
             <div class="weather-forecast-container">
-                <!-- Top Hero: Froggy Mascot + Current Weather -->
-                <div class="weather-hero-card">
+                <!-- Top Hero: Current Weather with Atmospheric Theme -->
+                <div class="weather-hero-card" id="wf-hero-card">
                     <div class="weather-hero-info">
                         <div class="weather-hero-header">
                             <div>
@@ -169,9 +169,8 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Small Weather Frog Mascot off to the side -->
-                    <div class="weather-frog-badge" id="wf-frog-wrap" title="Weather Mascot">
-                        <!-- Froggy SVG injected dynamically -->
+                    <div class="weather-hero-art">
+                        <div class="weather-hero-icon" id="wf-hero-icon">☀️</div>
                     </div>
                 </div>
 
@@ -582,6 +581,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js" integrity="sha384-ZFaJg22VvVm4+3ZqY9eRIHGmqdEQb+c7XO+0IKspqdtPGFu6xRiPnK8xeNA//kQJ" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" integrity="sha384-Dr98ddmUw2QkdCarNQ+OL7xLty7cSxgR0T7v1tq4UErS/qLV0132sBYTolRAFuOV" crossorigin="anonymous"></script>
     
-    <script src="app.js?v=2.1.2"></script>
+    <script src="app.js?v=2.2.0"></script>
 </body>
 </html>

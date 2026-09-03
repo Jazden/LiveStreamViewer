@@ -431,8 +431,12 @@
             pointer-events: auto;
         }
 
-        .stream-iframe-card .stream-controls {
+        .stream-iframe-card .stream-controls,
+        .stream-weather-card .stream-controls {
             display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
 
         .stream-name {
@@ -1332,44 +1336,60 @@
             flex: 1;
         }
 
-        .weather-frog-badge {
-            width: 130px;
-            height: 90px;
-            min-width: 130px;
-            min-height: 90px;
-            max-width: 130px;
-            max-height: 90px;
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: #0f172a;
-            flex-shrink: 0;
+        .weather-hero-art {
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 10px 20px;
+            flex-shrink: 0;
         }
 
-        .froggy-svg {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        .weather-hero-icon {
+            font-size: 4.5rem;
+            line-height: 1;
+            filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+            animation: weatherIconFloat 4s ease-in-out infinite;
         }
 
-        @media (max-width: 540px) {
-            .weather-hero-card {
-                padding: 16px;
-                gap: 12px;
-            }
-            .weather-frog-badge {
-                width: 95px;
-                height: 65px;
-                min-width: 95px;
-                min-height: 65px;
-                max-width: 95px;
-                max-height: 65px;
-            }
+        @keyframes weatherIconFloat {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-5px) scale(1.04); }
+        }
+
+        /* Weather Atmospheric Dynamic Background Themes */
+        .weather-hero-card.theme-sunny,
+        .weather-cam-widget.theme-sunny {
+            background: linear-gradient(135deg, rgba(14, 116, 144, 0.75) 0%, rgba(3, 105, 161, 0.7) 40%, rgba(15, 23, 42, 0.85) 100%),
+                        radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.35) 0%, transparent 65%) !important;
+        }
+
+        .weather-hero-card.theme-clear-night,
+        .weather-cam-widget.theme-clear-night {
+            background: linear-gradient(135deg, rgba(2, 6, 23, 0.88) 0%, rgba(15, 23, 42, 0.82) 50%, rgba(30, 27, 75, 0.82) 100%),
+                        radial-gradient(circle at 85% 15%, rgba(248, 250, 252, 0.15) 0%, transparent 50%) !important;
+        }
+
+        .weather-hero-card.theme-rain,
+        .weather-cam-widget.theme-rain {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.88) 0%, rgba(15, 23, 42, 0.85) 60%, rgba(2, 6, 23, 0.9) 100%),
+                        radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 60%) !important;
+        }
+
+        .weather-hero-card.theme-storm,
+        .weather-cam-widget.theme-storm {
+            background: linear-gradient(135deg, rgba(30, 27, 75, 0.92) 0%, rgba(49, 16, 66, 0.88) 50%, rgba(10, 10, 20, 0.95) 100%),
+                        radial-gradient(circle at 75% 25%, rgba(253, 224, 71, 0.15) 0%, transparent 50%) !important;
+        }
+
+        .weather-hero-card.theme-snow,
+        .weather-cam-widget.theme-snow {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.88) 0%, rgba(12, 74, 110, 0.78) 50%, rgba(15, 23, 42, 0.88) 100%),
+                        radial-gradient(circle at 80% 20%, rgba(248, 250, 252, 0.25) 0%, transparent 60%) !important;
+        }
+
+        .weather-hero-card.theme-cloudy,
+        .weather-cam-widget.theme-cloudy {
+            background: linear-gradient(135deg, rgba(51, 65, 85, 0.88) 0%, rgba(30, 41, 59, 0.82) 50%, rgba(15, 23, 42, 0.88) 100%) !important;
         }
 
         .weather-hero-header {
@@ -1665,29 +1685,7 @@
             background: linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444);
         }
 
-        /* Weather Frog SVG Animations */
-        @keyframes frogIdle {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-2px); }
-        }
 
-        @keyframes frogBlink {
-            0%, 92%, 100% { transform: scaleY(0); }
-            96% { transform: scaleY(1); }
-        }
-
-        .frog-character {
-            transform-origin: 160px 145px;
-            animation: frogIdle 4s ease-in-out infinite;
-        }
-
-        .eyelid {
-            transform-origin: center;
-            animation: frogBlink 5s infinite;
-        }
-
-        .eyelid-left { transform-origin: 144px 74px; }
-        .eyelid-right { transform-origin: 176px 74px; }
 
         @keyframes sunRotate {
             0% { transform: rotate(0deg); }
@@ -1776,18 +1774,18 @@
             left: 0;
             right: 0;
             bottom: 0;
-            padding: 38px 12px 10px 12px;
+            padding: 34px 12px 10px 12px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             color: var(--text-main);
             z-index: 2;
             font-family: var(--font-family);
-            background: rgba(3, 7, 18, 0.6);
-            backdrop-filter: blur(8px) saturate(140%);
-            -webkit-backdrop-filter: blur(8px) saturate(140%);
-            overflow-y: auto;
-            gap: 8px;
+            background: rgba(3, 7, 18, 0.7);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            overflow: hidden;
+            gap: 6px;
             box-sizing: border-box;
         }
 
@@ -1808,6 +1806,18 @@
             flex-direction: column;
             gap: 2px;
             flex: 1;
+            min-width: 0;
+        }
+
+        .wc-location {
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: -0.2px;
+            color: var(--text-main);
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .wc-temp-row {
@@ -1816,28 +1826,51 @@
             gap: 8px;
         }
 
+        .wc-current-temp {
+            font-size: 2.2rem;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text-main);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+        }
+
         .wc-desc-tag {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: var(--accent);
+            font-weight: 600;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .wc-sub-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
             font-weight: 600;
         }
 
-        .wc-frog-mini {
-            width: 96px;
-            height: 64px;
-            min-width: 96px;
-            min-height: 64px;
-            max-width: 96px;
-            max-height: 64px;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: #0f172a;
-            flex-shrink: 0;
+        .wc-header-right {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .wc-main-emoji {
+            font-size: 2.4rem;
+            line-height: 1;
+            filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+        }
+
+        .wc-badges-col {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: flex-end;
         }
 
         .wc-badges-row {
