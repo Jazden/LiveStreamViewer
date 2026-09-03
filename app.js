@@ -3792,10 +3792,12 @@
             if (isoMatch) {
                 return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
             }
-            // M/D/YYYY or MM/DD/YYYY or M-D-YYYY
-            const usMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+            // M/D/YYYY or MM/DD/YYYY or M/D/YY or MM/DD/YY
+            const usMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
             if (usMatch) {
-                return `${usMatch[3]}-${String(usMatch[1]).padStart(2, '0')}-${String(usMatch[2]).padStart(2, '0')}`;
+                let y = Number(usMatch[3]);
+                if (y < 100) y += (y < 70 ? 2000 : 1900);
+                return `${y}-${String(usMatch[1]).padStart(2, '0')}-${String(usMatch[2]).padStart(2, '0')}`;
             }
             // Native Date string fallback
             const parsed = new Date(str);
@@ -4008,6 +4010,24 @@
             return rows;
         }
 
+        // Ensure SheetJS Excel library is ready
+        async function ensureXlsxLoaded() {
+            if (typeof XLSX !== 'undefined') return true;
+            return new Promise((resolve) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                script.onload = () => resolve(typeof XLSX !== 'undefined');
+                script.onerror = () => {
+                    const fallback = document.createElement('script');
+                    fallback.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                    fallback.onload = () => resolve(typeof XLSX !== 'undefined');
+                    fallback.onerror = () => resolve(false);
+                    document.head.appendChild(fallback);
+                };
+                document.head.appendChild(script);
+            });
+        }
+
         // Parse Excel (.xlsx, .xls) or CSV spreadsheet file
         async function parseSafetySpreadsheet(file) {
             const fileName = file.name.toLowerCase();
@@ -4016,11 +4036,16 @@
             const buffer = await file.arrayBuffer();
             let rawRows = [];
 
-            if (isExcel && typeof XLSX !== 'undefined') {
+            if (isExcel) {
+                const loaded = await ensureXlsxLoaded();
+                if (!loaded || typeof XLSX === 'undefined') {
+                    throw new Error("Unable to load Excel reader library. Please check your internet connection or save your file as a .csv file.");
+                }
                 const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
                 const firstSheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[firstSheetName];
-                rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+                // Read formatted strings with dateNF to preserve date formats
+                rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
             } else {
                 // Parse as text / CSV
                 const text = new TextDecoder('utf-8').decode(buffer);
@@ -4033,20 +4058,38 @@
                 const row = rawRows[i];
                 if (!row || row.length < 2) continue;
 
-                const col0 = String(row[0] || '').trim();
-                const col1 = String(row[1] || '').trim();
+                let dateVal = null;
+                let messageVal = '';
 
-                // Check for header row (e.g., "Date", "Message")
-                if (i === 0 && (col0.toLowerCase().includes('date') || col0.toLowerCase().includes('day')) && 
-                    (col1.toLowerCase().includes('message') || col1.toLowerCase().includes('safety') || col1.toLowerCase().includes('tip'))) {
-                    continue;
+                // Check col 0 for date
+                const d0 = normalizeDateString(row[0]);
+                if (d0) {
+                    dateVal = d0;
+                    messageVal = String(row[1] || '').trim();
+                } else if (row.length > 2) {
+                    // Check col 1 for date (e.g. if col 0 was row number or ID)
+                    const d1 = normalizeDateString(row[1]);
+                    if (d1) {
+                        dateVal = d1;
+                        messageVal = String(row[2] || '').trim();
+                    }
                 }
 
-                const normalizedDate = normalizeDateString(row[0]);
-                if (normalizedDate && col1) {
+                // If messageVal is still empty, search remaining cells for text
+                if (dateVal && !messageVal) {
+                    for (let c = 1; c < row.length; c++) {
+                        const cellStr = String(row[c] || '').trim();
+                        if (cellStr) {
+                            messageVal = cellStr;
+                            break;
+                        }
+                    }
+                }
+
+                if (dateVal && messageVal) {
                     messages.push({
-                        date: normalizedDate,
-                        message: col1
+                        date: dateVal,
+                        message: messageVal
                     });
                 }
             }
