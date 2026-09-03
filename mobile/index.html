@@ -30,7 +30,7 @@
                 <h3>Connect to Display</h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin: 8px 0 16px;">Enter the 6-digit code shown on your TV display to pair.</p>
                 <div style="display: flex; flex-direction: column; gap: 12px; max-width: 280px; margin: 0 auto 4px;">
-                    <input type="text" id="remote-pairing-input" maxlength="6" placeholder="e.g. 123456" pattern="[0-9]*" inputmode="numeric" style="background: rgba(255, 255, 255, 0.05); border: 2px solid var(--border-color); color: white; padding: 12px; border-radius: 10px; font-size: 1.5rem; text-align: center; letter-spacing: 4px; font-family: monospace; font-weight: 700; width: 100%; transition: border-color 0.2s;">
+                    <input type="text" id="remote-pairing-input" maxlength="6" placeholder="e.g. 123456" pattern="[0-9]*" inputmode="numeric" onkeydown="if(event.key==='Enter') connectWithInputCode()" style="background: rgba(255, 255, 255, 0.05); border: 2px solid var(--border-color); color: white; padding: 12px; border-radius: 10px; font-size: 1.5rem; text-align: center; letter-spacing: 4px; font-family: monospace; font-weight: 700; width: 100%; transition: border-color 0.2s;">
                     <button class="btn btn-primary" onclick="connectWithInputCode()" style="width: 100%; justify-content: center; padding: 12px; font-size: 0.95rem;">Connect Remote</button>
                 </div>
             </div>
@@ -254,6 +254,6 @@
 
     <!-- MQTT Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-    <script src="./remote.js?v=1.0.0"></script>
+    <script src="./remote.js?v=1.0.1"></script>
 </body>
 </html>
