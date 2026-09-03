@@ -132,13 +132,12 @@ This document tracks all identified performance, architectural, and design issue
 - **Proposed Solution**: Rate-limit the `refreshAll` action (e.g., once per 30 seconds), require explicit user confirmation for reload commands, or remove it entirely from the remote command set and only allow it locally.
 - **Notes**: 
 
-### [ ] Pairing Code Stored in Long-Lived Cookie (365 days)
-- **Category**: Security — MQTT (Low)
-- **Severity**: Low
-- **File**: [app.js L3154](file:///home/jazden/Projects/LiveStreamViewer/app.js#L3154)
-- **Description**: The pairing code is stored in a cookie with a 365-day expiry. Given that this code acts as the sole authentication factor for remote control access, its long lifetime increases the window for interception or reuse. The cookie is set with `SameSite=Lax` and conditionally `Secure`, but there is no `HttpOnly` flag (not applicable for JS-read cookies, but the long lifetime is still a concern).
-- **Proposed Solution**: Reduce cookie lifetime to session-only or a short period (e.g., 7 days). Consider prompting users to regenerate codes periodically. Store the code in `sessionStorage` if cross-session persistence is not required.
-- **Notes**: 
+### [x] Pairing Code & State Stored in Long-Lived Cookies (365 days / Header Bloat)
+- **Category**: Security / Performance (S3 / P1)
+- **Severity**: High
+- **Description**: Application state (`user_streams`, `active_stream_ids`, `stream_order`, `location_config`, `rotator_config`, `layout_presets`, `notes`) and pairing secrets were stored in `document.cookie` with 365-day expiries. This attached kilobytes of serialized JSON to every HTTP asset request, leaked stream URLs to CDNs, and risked silent 4KB truncation.
+- **Proposed Solution**: Migrate all app state and pairing secrets to `localStorage` via a resilient abstraction (`getStoredItem`, `setStoredItem`, `removeStoredItem`) with automated one-time migration and legacy cookie purging.
+- **Notes**: Resolved by replacing cookie persistence with `localStorage` across `app.js`. On first load, existing legacy cookies are seamlessly migrated to `localStorage` and deleted from `document.cookie` to free up request headers. Storage capacity expanded from 4KB to 5MB+. 
 
 ### [x] Inline `onclick` Handlers with String-Interpolated Data
 - **Category**: Security — Data Sanitization (Low)

@@ -88,7 +88,7 @@
             return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
 
-        // Cookie Helpers
+        // Storage Helpers (LocalStorage with transparent legacy Cookie migration)
         function setCookie(name, value, days) {
             let expires = "";
             if (days) {
@@ -114,15 +114,59 @@
             return null;
         }
 
+        function deleteCookie(name) {
+            document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+        }
+
+        function getStoredItem(key) {
+            try {
+                const val = localStorage.getItem(key);
+                if (val !== null) return val;
+            } catch (e) {
+                console.warn('localStorage read error for ' + key, e);
+            }
+            // Fallback: check if legacy cookie exists and migrate it
+            const legacyCookie = getCookie(key);
+            if (legacyCookie !== null && legacyCookie !== '') {
+                try {
+                    localStorage.setItem(key, legacyCookie);
+                    deleteCookie(key); // Purge legacy cookie to free up HTTP request header space
+                } catch (e) {}
+                return legacyCookie;
+            }
+            return null;
+        }
+
+        function setStoredItem(key, value) {
+            try {
+                localStorage.setItem(key, value);
+                // Ensure legacy cookie is purged so it doesn't linger in HTTP request headers
+                if (getCookie(key) !== null) {
+                    deleteCookie(key);
+                }
+            } catch (e) {
+                console.error('localStorage write error for ' + key, e);
+                // Fallback to cookie if localStorage quota exceeded or private mode blocks it
+                setCookie(key, value, 30);
+            }
+        }
+
+        function removeStoredItem(key) {
+            try {
+                localStorage.removeItem(key);
+            } catch (e) {}
+            deleteCookie(key);
+        }
+
         function persistState() {
             if (typeof tvSyncMasterCode !== 'undefined' && tvSyncMasterCode) {
-                // In sync mode, do not write the master TV's configurations into our cookies!
+                // In sync mode, do not write the master TV's configurations into our persistent storage!
                 if (window.sendMqttSync) {
                     window.sendMqttSync();
                 }
                 return;
             }
-            setCookie('stream_layout', appState.layout, 365);
+            setStoredItem('stream_layout', appState.layout);
             
             // Save user-configured streams (isDefault === false)
             const userStreams = appState.streams.filter(s => !s.isDefault).map(s => ({
@@ -133,28 +177,28 @@
                 category: s.category || 'General',
                 active: s.active
             }));
-            setCookie('user_streams', JSON.stringify(userStreams), 365);
+            setStoredItem('user_streams', JSON.stringify(userStreams));
             
             // Save active stream IDs (both default and custom)
             const activeIds = appState.streams.filter(s => s.active).map(s => s.id);
-            setCookie('active_stream_ids', JSON.stringify(activeIds), 365);
+            setStoredItem('active_stream_ids', JSON.stringify(activeIds));
             
             // Save stream order
             const orderIds = appState.streams.map(s => s.id);
-            setCookie('stream_order', JSON.stringify(orderIds), 365);
+            setStoredItem('stream_order', JSON.stringify(orderIds));
             
             // Save location configuration
-            setCookie('location_config', JSON.stringify({
+            setStoredItem('location_config', JSON.stringify({
                 location: appState.location,
                 timezone: appState.timezone
-            }), 365);
+            }));
             
             // Save rotator configuration
-            setCookie('rotator_config', JSON.stringify({
+            setStoredItem('rotator_config', JSON.stringify({
                 mode: appState.rotatorMode,
                 interval: appState.rotatorInterval,
                 keepAlive: appState.keepStreamsAlive
-            }), 365);
+            }));
 
             if (window.sendMqttSync) {
                 window.sendMqttSync();
@@ -177,11 +221,11 @@
             }
 
             // Load layout
-            const savedLayout = getCookie('stream_layout');
+            const savedLayout = getStoredItem('stream_layout');
             if (savedLayout) appState.layout = savedLayout;
             
             // Load rotator configuration
-            const savedRotator = getCookie('rotator_config');
+            const savedRotator = getStoredItem('rotator_config');
             if (savedRotator) {
                 try {
                     const rot = JSON.parse(savedRotator);
@@ -193,12 +237,12 @@
             
             // Load user configured streams
             let userStreams = [];
-            const savedUserStreams = getCookie('user_streams');
+            const savedUserStreams = getStoredItem('user_streams');
             if (savedUserStreams) {
                 try {
                     userStreams = JSON.parse(savedUserStreams);
                 } catch (e) {
-                    console.error('Error parsing user streams cookie', e);
+                    console.error('Error parsing user streams storage', e);
                 }
             }
             
@@ -226,7 +270,7 @@
             });
             
             // Load active/visible IDs
-            const savedActiveIds = getCookie('active_stream_ids');
+            const savedActiveIds = getStoredItem('active_stream_ids');
             if (savedActiveIds) {
                 try {
                     const activeIds = JSON.parse(savedActiveIds);
@@ -234,12 +278,12 @@
                         s.active = activeIds.includes(s.id);
                     });
                 } catch (e) {
-                    console.error('Error parsing active stream IDs cookie', e);
+                    console.error('Error parsing active stream IDs storage', e);
                 }
             }
 
             // Load and sort by stream order index
-            const savedOrder = getCookie('stream_order');
+            const savedOrder = getStoredItem('stream_order');
             if (savedOrder) {
                 try {
                     const orderIds = JSON.parse(savedOrder);
@@ -251,7 +295,7 @@
                         return idxA - idxB;
                     });
                 } catch (e) {
-                    console.error('Error parsing stream order cookie', e);
+                    console.error('Error parsing stream order storage', e);
                 }
             }
             
@@ -269,7 +313,7 @@
             updatePresetDropdown();
 
             // Initialize Sidebar state and contents
-            const sidebarCollapsed = getCookie('sidebar_collapsed');
+            const sidebarCollapsed = getStoredItem('sidebar_collapsed');
             const sidebar = document.getElementById('streams-sidebar');
             const sidebarBtn = document.getElementById('btn-toggle-sidebar');
             if (sidebar) {
@@ -537,7 +581,7 @@
         }
 
         function initLocationAndWeather() {
-            const savedLocation = getCookie('location_config');
+            const savedLocation = getStoredItem('location_config');
             if (savedLocation) {
                 try {
                     const loc = JSON.parse(savedLocation);
@@ -548,7 +592,7 @@
                     updateWeatherBadge(appState.location);
                     renderWeatherPanel();
                 } catch (e) {
-                    console.error('Error parsing location config cookie', e);
+                    console.error('Error parsing location config storage', e);
                     detectIpLocation();
                 }
             } else {
@@ -898,7 +942,7 @@
                 }
             }
             
-            setCookie('sidebar_collapsed', isCollapsed ? '1' : '0', 365);
+            setStoredItem('sidebar_collapsed', isCollapsed ? '1' : '0');
         }
 
         const debouncedRenderSidebar = debounce(() => {
@@ -2167,12 +2211,14 @@
 
         function resetToSystemDefaults() {
             if (confirm("Are you sure you want to reset all configurations? This will wipe your settings and custom streams.")) {
-                setCookie('stream_layout', '', -1);
-                setCookie('user_streams', '', -1);
-                setCookie('active_stream_ids', '', -1);
-                setCookie('stream_order', '', -1);
-                setCookie('location_config', '', -1);
-                setCookie('layout_presets', '', -1);
+                removeStoredItem('stream_layout');
+                removeStoredItem('user_streams');
+                removeStoredItem('active_stream_ids');
+                removeStoredItem('stream_order');
+                removeStoredItem('location_config');
+                removeStoredItem('rotator_config');
+                removeStoredItem('layout_presets');
+                removeStoredItem('sidebar_collapsed');
                 
                 appState.layout = 'cinema';
                 appState.location = "Galveston";
@@ -2225,12 +2271,12 @@
 
         // 2. Presets Management
         function getPresets() {
-            const saved = getCookie('layout_presets');
+            const saved = getStoredItem('layout_presets');
             if (!saved) return [];
             try {
                 return JSON.parse(saved);
             } catch (e) {
-                console.error("Error parsing layout presets cookie", e);
+                console.error("Error parsing layout presets storage", e);
                 return [];
             }
         }
@@ -2287,7 +2333,7 @@
                 presets.push(presetData);
             }
             
-            setCookie('layout_presets', JSON.stringify(presets), 365);
+            setStoredItem('layout_presets', JSON.stringify(presets));
             updatePresetDropdown();
             populatePresetsTable();
         }
@@ -2295,7 +2341,7 @@
         function deletePreset(name) {
             let presets = getPresets();
             presets = presets.filter(p => p.name.toLowerCase() !== name.toLowerCase());
-            setCookie('layout_presets', JSON.stringify(presets), 365);
+            setStoredItem('layout_presets', JSON.stringify(presets));
             updatePresetDropdown();
             populatePresetsTable();
         }
@@ -2931,7 +2977,7 @@
             const container = document.getElementById(`player-container-${stream.id}`);
             if (!container) return;
             
-            const savedText = getCookie(`notes_content_${stream.id}`) || '';
+            const savedText = getStoredItem(`notes_content_${stream.id}`) || '';
             
             container.innerHTML = `
                 <div class="notes-widget-container">
@@ -2946,7 +2992,7 @@
         }
 
         function saveNotesContent(streamId, val) {
-            setCookie(`notes_content_${streamId}`, val, 365);
+            setStoredItem(`notes_content_${streamId}`, val);
         }
 
         // --- Public Stream Directory Browser ---
@@ -3823,16 +3869,16 @@
         let tvPairingCode = '';
 
         function initTVPairing() {
-            tvPairingCode = getCookie('pairing_code');
+            tvPairingCode = getStoredItem('pairing_code');
             if (!tvPairingCode || tvPairingCode.length !== 6) {
                 tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
-                setCookie('pairing_code', tvPairingCode, 365);
+                setStoredItem('pairing_code', tvPairingCode);
             }
 
-            tvHmacSecret = getCookie('pairing_hmac_secret');
+            tvHmacSecret = getStoredItem('pairing_hmac_secret');
             if (!tvHmacSecret) {
                 tvHmacSecret = generateHmacSecret();
-                setCookie('pairing_hmac_secret', tvHmacSecret, 365);
+                setStoredItem('pairing_hmac_secret', tvHmacSecret);
             }
 
             const topic = getMqttTopic(tvPairingCode);
@@ -4197,11 +4243,11 @@
         function regeneratePairingCode() {
             if (confirm('Regenerating pairing code will disconnect any currently paired remote controls. Continue?')) {
                 tvPairingCode = Math.floor(100000 + Math.random() * 900000).toString();
-                setCookie('pairing_code', tvPairingCode, 365);
+                setStoredItem('pairing_code', tvPairingCode);
                 
                 // Rotate secret
                 tvHmacSecret = generateHmacSecret();
-                setCookie('pairing_hmac_secret', tvHmacSecret, 365);
+                setStoredItem('pairing_hmac_secret', tvHmacSecret);
 
                 if (tvMqttClient) {
                     try {
