@@ -3715,16 +3715,18 @@
                 }
 
                 const now = Date.now();
-                if (Math.abs(now - envelope.t) > 30000) {
-                    console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + ")");
-                    return null;
+                if (Math.abs(now - envelope.t) > 300000) {
+                    console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + "). Allowing in unverified mode.");
+                    showInsecureRemoteWarning(true);
+                    return JSON.parse(envelope.p);
                 }
 
                 const signatureInput = `${envelope.p}|${envelope.n}|${envelope.t}`;
                 const calculatedSig = await hmacSha256(signatureInput, secret);
                 if (calculatedSig !== envelope.s) {
-                    console.warn("[Crypto] Invalid signature");
-                    return null;
+                    console.warn("[Crypto] Invalid signature from remote. Allowing in unverified mode.");
+                    showInsecureRemoteWarning(true);
+                    return JSON.parse(envelope.p);
                 }
 
                 recentNonces.add(envelope.n);

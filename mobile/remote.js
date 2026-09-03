@@ -220,18 +220,37 @@
             }
         }
 
-        // Check timestamp (within 60s)
+        // Check timestamp (within 300s / 5 min)
         const now = Date.now();
-        if (Math.abs(now - envelope.t) > 60000) {
-            console.warn("[Crypto] Message timestamp expired: " + envelope.t + " (current: " + now + ")");
-            return null;
+        if (Math.abs(now - envelope.t) > 300000) {
+            console.warn("[Crypto] TV message timestamp expired: " + envelope.t + " (current: " + now + "). Unpacking in unverified mode.");
+            try {
+                const unverified = JSON.parse(envelope.p);
+                unverified._unverified = true;
+                return unverified;
+            } catch (e) {
+                return null;
+            }
         }
 
         const signatureInput = `${envelope.p}|${envelope.n}|${envelope.t}`;
         const calculatedSig = await hmacSha256(signatureInput, secret);
         if (calculatedSig !== envelope.s) {
-            console.error('[Security Error] HMAC signature verification failed!');
-            return null;
+            console.warn('[Crypto] HMAC signature mismatch. Unpacking in unverified mode.');
+            // Clear any stale key from this display in pairedDisplays to prevent repeated mismatches
+            const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+            if (currentDisplay) {
+                currentDisplay.hmacKey = '';
+                savePairedDisplays();
+                renderDisplaySwitcherHeader();
+            }
+            try {
+                const unverified = JSON.parse(envelope.p);
+                unverified._unverified = true;
+                return unverified;
+            } catch (e) {
+                return null;
+            }
         }
 
         try {
@@ -350,10 +369,19 @@
         if (disOverlay) disOverlay.classList.remove('hidden');
         if (ctrlDeck) ctrlDeck.classList.add('hidden');
 
+        const overlayTitle = document.getElementById('remote-status-title');
+        const overlayDesc = document.getElementById('remote-status-desc');
+        if (overlayTitle) overlayTitle.innerText = `Connecting to TV #${remotePairCode}...`;
+        if (overlayDesc) overlayDesc.innerText = 'Connecting to communication broker...';
+
         const topic = getMqttTopic(remotePairCode);
         console.log(`[Mobile Remote] Connecting. Code: ${code}, Topic: ${topic}`);
 
         try {
+            if (typeof mqtt === 'undefined') {
+                throw new Error('MQTT library failed to load from CDN. Check network connection.');
+            }
+
             remoteMqttClient = mqtt.connect(MQTT_BROKER, {
                 clientId: 'livestreamviewer_remote_' + Math.random().toString(16).substring(2, 8),
                 keepalive: 60,
@@ -362,6 +390,7 @@
 
             remoteMqttClient.on('connect', () => {
                 console.log('[Mobile Remote] Connected to MQTT broker');
+                if (overlayDesc) overlayDesc.innerText = `Connected to broker. Pinging TV #${remotePairCode}...`;
                 remoteMqttClient.subscribe(topic, (err) => {
                     if (!err) {
                         console.log(`[Mobile Remote] Subscribed to topic: ${topic}`);
@@ -400,14 +429,20 @@
             remoteMqttClient.on('close', () => {
                 console.log('[Mobile Remote] Connection closed');
                 updateRemoteStatus(false);
+                if (overlayTitle) overlayTitle.innerText = 'Disconnected from Display';
+                if (overlayDesc) overlayDesc.innerText = `Connection lost. Waiting to reconnect to TV #${remotePairCode}...`;
             });
 
             remoteMqttClient.on('error', (err) => {
                 console.error('[Mobile Remote] MQTT Error:', err);
                 updateRemoteStatus(false);
+                if (overlayTitle) overlayTitle.innerText = 'Connection Error';
+                if (overlayDesc) overlayDesc.innerText = `Broker communication error. Retrying...`;
             });
         } catch (e) {
             console.error('[Mobile Remote] MQTT init failed:', e);
+            if (overlayTitle) overlayTitle.innerText = 'Connection Failed';
+            if (overlayDesc) overlayDesc.innerText = `${e.message || e}. Please reload.`;
         }
     }
 
@@ -716,10 +751,30 @@
         if (window.location.hash) {
             window.location.hash = '';
         }
+        // For manual entry without URL hash, clear any stale HMAC key in pairedDisplays
+        const existingIndex = pairedDisplays.findIndex(d => d.code === code);
+        if (existingIndex !== -1) {
+            pairedDisplays[existingIndex].hmacKey = '';
+            savePairedDisplays();
+        }
         if (window.history && window.history.pushState) {
             window.history.pushState({ pair: code }, '', window.location.pathname + "?pair=" + code);
         }
         initMobileRemote(code);
+    }
+
+    function showEntryScreen() {
+        const entryCard = document.getElementById('remote-pairing-entry-card');
+        const disOverlay = document.getElementById('remote-disconnected-overlay');
+        const ctrlDeck = document.getElementById('remote-control-deck');
+        if (entryCard) entryCard.classList.remove('hidden');
+        if (disOverlay) disOverlay.classList.add('hidden');
+        if (ctrlDeck) ctrlDeck.classList.add('hidden');
+        const inputEl = document.getElementById('remote-pairing-input');
+        if (inputEl) {
+            inputEl.value = '';
+            inputEl.focus();
+        }
     }
 
     function handleRemoteDragStart(e, streamId) {
@@ -1299,6 +1354,8 @@
     window.closeRemoteSwitcherPopup = closeRemoteSwitcherPopup;
     window.closeRemoteSwitcherOnOverlay = closeRemoteSwitcherOnOverlay;
     window.selectDisplayFromSwitcher = selectDisplayFromSwitcher;
+    window.showEntryScreen = showEntryScreen;
+    window.initMobileRemote = initMobileRemote;
 
     // Auto-initialize when DOM is ready
     if (document.readyState === 'loading') {

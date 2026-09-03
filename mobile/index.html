@@ -37,9 +37,12 @@
 
             <!-- Status card / Reconnect -->
             <div class="remote-card status-card hidden" style="margin-bottom: 16px; text-align: center;" id="remote-disconnected-overlay">
-                <h3>Disconnected from Display</h3>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 8px 0 16px;">Make sure the TV display is open and has the pairing modal or status online.</p>
-                <button class="btn btn-primary" onclick="window.location.reload()" style="width: 100%; justify-content: center;">Reconnect</button>
+                <h3 id="remote-status-title">Connecting to Display...</h3>
+                <p id="remote-status-desc" style="font-size: 0.85rem; color: var(--text-muted); margin: 8px 0 16px;">Make sure the TV display is open and has the pairing modal or status online.</p>
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button class="btn btn-primary" onclick="initMobileRemote(remotePairCode)" style="flex: 1; min-width: 120px; justify-content: center;">Retry</button>
+                    <button class="btn btn-secondary" onclick="showEntryScreen()" style="flex: 1; min-width: 120px; justify-content: center;">Enter Code</button>
+                </div>
             </div>
 
             <!-- Main Remote Control deck -->
@@ -254,6 +257,6 @@
 
     <!-- MQTT Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-    <script src="./remote.js?v=1.0.1"></script>
+    <script src="./remote.js?v=1.0.2"></script>
 </body>
 </html>
