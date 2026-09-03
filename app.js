@@ -1398,6 +1398,13 @@
 
         // Initialize players
         function initializePlayer(stream) {
+            // Guard: clear any existing pending player polling timers for this stream to prevent zombie interval leaks
+            if (pendingPlayerTimers[stream.id]) {
+                clearInterval(pendingPlayerTimers[stream.id]);
+                clearTimeout(pendingPlayerTimers[stream.id]);
+                delete pendingPlayerTimers[stream.id];
+            }
+
             if (stream.type === 'hls') {
                 const videoEl = document.createElement('video');
                 videoEl.id = 'video-' + stream.id;
@@ -1461,15 +1468,24 @@
                 container.appendChild(playerDiv);
                 
                 let attempts = 0;
+                if (pendingPlayerTimers[stream.id]) {
+                    clearInterval(pendingPlayerTimers[stream.id]);
+                    clearTimeout(pendingPlayerTimers[stream.id]);
+                    delete pendingPlayerTimers[stream.id];
+                }
                 const interval = setInterval(() => {
                     attempts++;
                     if (window.YT && window.YT.Player) {
                         clearInterval(interval);
-                        delete pendingPlayerTimers[stream.id];
+                        if (pendingPlayerTimers[stream.id] === interval) {
+                            delete pendingPlayerTimers[stream.id];
+                        }
                         createYTPlayer(stream, playerDiv.id, ytId);
                     } else if (attempts > 50) {
                         clearInterval(interval);
-                        delete pendingPlayerTimers[stream.id];
+                        if (pendingPlayerTimers[stream.id] === interval) {
+                            delete pendingPlayerTimers[stream.id];
+                        }
                         playerDiv.innerText = "Failed to load YouTube Iframe API";
                     }
                 }, 100);
@@ -1490,15 +1506,24 @@
                 container.appendChild(playerDiv);
                 
                 let attempts = 0;
+                if (pendingPlayerTimers[stream.id]) {
+                    clearInterval(pendingPlayerTimers[stream.id]);
+                    clearTimeout(pendingPlayerTimers[stream.id]);
+                    delete pendingPlayerTimers[stream.id];
+                }
                 const interval = setInterval(() => {
                     attempts++;
                     if (window.Twitch && window.Twitch.Player) {
                         clearInterval(interval);
-                        delete pendingPlayerTimers[stream.id];
+                        if (pendingPlayerTimers[stream.id] === interval) {
+                            delete pendingPlayerTimers[stream.id];
+                        }
                         createTwitchPlayer(stream, playerDiv.id, channel);
                     } else if (attempts > 50) {
                         clearInterval(interval);
-                        delete pendingPlayerTimers[stream.id];
+                        if (pendingPlayerTimers[stream.id] === interval) {
+                            delete pendingPlayerTimers[stream.id];
+                        }
                         playerDiv.innerText = "Failed to load Twitch API";
                     }
                 }, 100);

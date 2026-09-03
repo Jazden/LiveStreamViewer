@@ -213,7 +213,7 @@ transition: background-color 0.25s ease, opacity 0.25s ease, transform 0.25s eas
 | S7 | Security — Pairing Cookie Lifetime | 🟢 Low | ✅ Resolved | ✅ Yes |
 | P1 | Perf — Cookie Request Bloat | 🔴 High | ✅ Resolved | ✅ Yes |
 | P2 | Perf — Network Storm | 🔴 High | ✅ Resolved | ✅ Yes |
-| P3 | Perf — Timer Leaks | 🟡 Medium | Open | ✅ Yes |
+| P3 | Perf — Timer Leaks | 🟡 Medium | ✅ Resolved | ✅ Yes |
 | P4 | Perf — Layout Thrashing | 🟡 Medium | Open | ✅ Yes |
 | P5 | Perf — CSS Transitions | 🟡 Medium | Open | ✅ Yes |
 | P6 | Perf — Unconditional Video.js | 🟢 Low | Open | ✅ Yes |
