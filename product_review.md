@@ -108,21 +108,21 @@ This document tracks all identified performance, architectural, and design issue
 - **Proposed Solution**: Implement a shared secret (exchanged during pairing via QR code). Sign each MQTT payload with HMAC-SHA256 using the shared secret and include the signature + a monotonic nonce in the message. On the receiver side, verify the signature and reject replayed nonces.
 - **Notes**: 
 
-### [ ] `addStream` via MQTT Accepts Unsanitized URL Data
+### [x] `addStream` via MQTT Accepts Unsanitized URL Data
 - **Category**: Security — Data Sanitization (High)
 - **Severity**: High
 - **File**: [app.js L3347-L3365](file:///home/jazden/Projects/LiveStreamViewer/app.js#L3347-L3365)
 - **Description**: The `addStream` remote command takes `s.name`, `s.url`, `s.type`, and `s.category` directly from the MQTT message payload and pushes them into `appState.streams` with **no validation or sanitization at the point of ingestion**. While `escapeHtml()` is applied later during rendering, the raw URL is stored and eventually fed into iframe `src` attributes and `<source>` tags. A crafted URL (e.g., a `javascript:` URI variant that bypasses the simple regex in `sanitizeUrl`, or a malicious HLS endpoint) could be injected by anyone who can publish to the topic.
 - **Proposed Solution**: Validate and sanitize all MQTT-received stream data at the point of ingestion in `handleRemoteCommand()`. Specifically: (1) enforce URL allowlists or strict protocol validation (only `https://`), (2) validate `type` against known enum values (`hls`, `youtube`, `twitch`, `weather`, `notes`), (3) limit `name`/`category` string lengths, and (4) run `sanitizeUrl()` on the URL before storing it.
-- **Notes**: 
+- **Notes**: Resolved. Added strict type allowlist (`['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes']`), string length bounds, and URL sanitization before persisting remote stream additions.
 
-### [ ] `sanitizeUrl()` Is Insufficient — Only Blocks `javascript:` and `data:`
+### [x] `sanitizeUrl()` Is Insufficient — Only Blocks `javascript:` and `data:`
 - **Category**: Security — Data Sanitization (Medium)
 - **Severity**: Medium
 - **File**: [app.js L64-L71](file:///home/jazden/Projects/LiveStreamViewer/app.js#L64-L71)
 - **Description**: `sanitizeUrl()` only rejects URLs starting with `javascript:` or `data:`. This can be bypassed with whitespace tricks (e.g., `\tjavascript:...`), Unicode direction overrides, or other protocol schemes (e.g., `vbscript:`, `blob:`). Additionally, it does not enforce HTTPS-only, meaning an attacker could inject `http://` URLs that load mixed content or redirect to malicious sites.
 - **Proposed Solution**: Use a URL allowlist approach: parse the URL with the `URL` constructor, verify `protocol` is `https:` (or `http:` if explicitly needed), and reject everything else. Consider using a battle-tested library like DOMPurify for URL sanitization.
-- **Notes**: 
+- **Notes**: Resolved. Upgraded `sanitizeUrl()` with control-character stripping, scheme allowlisting (`http:`, `https:` via native `URL` parser), blocked scheme defense (`javascript:`, `vbscript:`, `data:`, `blob:`, `file:`), and support for Twitch handles and internal tokens. 
 
 ### [x] Remote-Triggered `location.reload()` — Denial of Service
 - **Category**: Security — MQTT (Medium)

@@ -73,19 +73,48 @@
             });
         }
 
-        function sanitizeUrl(url) {
-            if (typeof url !== 'string') return '';
+        function sanitizeUrl(url, type) {
+            if (typeof url !== 'string') return 'about:blank';
             const trimmed = url.trim();
-            if (/^(javascript|data):/i.test(trimmed)) {
+            if (!trimmed) return 'about:blank';
+
+            // Internal tokens
+            if (trimmed === 'weather' || trimmed === 'notes') {
+                return trimmed;
+            }
+
+            // Simple Twitch channel names (alphanumeric + underscore, 2-35 chars)
+            if (type === 'twitch' && /^[a-zA-Z0-9_]{2,35}$/.test(trimmed)) {
+                return trimmed;
+            }
+
+            // Strip whitespace, control characters, and null bytes for scheme checking
+            const stripped = trimmed.replace(/[\x00-\x1F\x7F-\x9F\s]/g, '').toLowerCase();
+            if (/^(javascript|data|vbscript|blob|file):/i.test(stripped)) {
                 return 'about:blank';
             }
-            return trimmed;
+
+            try {
+                const parsed = new URL(trimmed);
+                if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                    return parsed.href;
+                }
+                return 'about:blank';
+            } catch (e) {
+                return 'about:blank';
+            }
         }
 
         function escapeJsString(str) {
             if (str === null || str === undefined) return '';
-            if (typeof str !== 'string') str = String(str);
-            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"')
+                .replace(/`/g, '\\`')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r')
+                .replace(/\0/g, '\\0');
         }
 
         // Storage Helpers (LocalStorage with transparent legacy Cookie migration)
@@ -1997,17 +2026,29 @@
             const typeInput = document.getElementById('stream-type-input');
             const urlInput = document.getElementById('stream-url-input');
             
-            const name = nameInput.value.trim();
-            const category = categoryInput ? categoryInput.value.trim() || 'General' : 'General';
-            const type = typeInput.value;
-            const url = urlInput.value.trim();
+            const name = nameInput.value.trim().substring(0, 100);
+            const category = categoryInput ? categoryInput.value.trim().substring(0, 50) || 'General' : 'General';
+            const type = typeInput.value.toLowerCase().trim();
+            const rawUrl = urlInput.value.trim();
             
-            if (!name || !url) return;
+            if (!name || !rawUrl) return;
+
+            const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes'];
+            if (!VALID_TYPES.includes(type)) {
+                alert('Invalid stream type selected.');
+                return;
+            }
+
+            const safeUrl = sanitizeUrl(rawUrl, type);
+            if (safeUrl === 'about:blank' && type !== 'notes' && type !== 'weather') {
+                alert('Please enter a valid HTTP or HTTPS stream URL.');
+                return;
+            }
             
             const newStream = {
                 id: 'custom-' + Date.now(),
                 name: name,
-                url: url,
+                url: safeUrl,
                 type: type,
                 category: category,
                 active: true,
@@ -3446,14 +3487,16 @@
         }
 
         function addDirectoryStream(name, url, type, category) {
-            if (appState.streams.some(s => s.url === url)) {
+            const safeUrl = sanitizeUrl(url, type);
+            if (safeUrl === 'about:blank') return;
+            if (appState.streams.some(s => s.url === safeUrl)) {
                 return;
             }
             
             const newStream = {
                 id: 'custom-' + Date.now(),
-                name: name,
-                url: url,
+                name: String(name).trim().substring(0, 100),
+                url: safeUrl,
                 type: type,
                 category: category || 'General',
                 active: true,
@@ -4131,12 +4174,36 @@
                 case 'addStream':
                     if (msg.data && msg.data.stream) {
                         const s = msg.data.stream;
+                        if (!s || typeof s !== 'object') break;
+
+                        const VALID_TYPES = ['hls', 'youtube', 'twitch', 'iframe', 'weather', 'notes'];
+                        const streamType = typeof s.type === 'string' ? s.type.toLowerCase().trim() : '';
+                        if (!VALID_TYPES.includes(streamType)) {
+                            console.warn('[TV Pairing] Rejected remote addStream with invalid type:', s.type);
+                            break;
+                        }
+
+                        const streamName = typeof s.name === 'string' ? s.name.trim().substring(0, 100) : '';
+                        if (!streamName) {
+                            console.warn('[TV Pairing] Rejected remote addStream with empty name');
+                            break;
+                        }
+
+                        const rawUrl = typeof s.url === 'string' ? s.url.trim() : '';
+                        const safeUrl = sanitizeUrl(rawUrl, streamType);
+                        if (safeUrl === 'about:blank' && streamType !== 'notes' && streamType !== 'weather') {
+                            console.warn('[TV Pairing] Rejected remote addStream with unsafe or unparseable URL:', s.url);
+                            break;
+                        }
+
+                        const category = typeof s.category === 'string' ? s.category.trim().substring(0, 50) || 'General' : 'General';
+
                         const newStream = {
                             id: 'custom-' + Date.now(),
-                            name: s.name,
-                            url: s.url,
-                            type: s.type,
-                            category: s.category || 'General',
+                            name: streamName,
+                            url: safeUrl,
+                            type: streamType,
+                            category: category,
                             active: true,
                             isDefault: false
                         };
