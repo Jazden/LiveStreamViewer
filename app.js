@@ -742,13 +742,13 @@
             }
 
             return `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" class="froggy-svg">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="45 12 235 156" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="froggy-svg">
               <defs>
                 <linearGradient id="skyGradDynamic" x1="0" y1="0" x2="0" y2="1">
                   ${skyGrad}
                 </linearGradient>
               </defs>
-              <rect width="320" height="180" fill="url(#skyGradDynamic)" />
+              <rect x="45" y="12" width="235" height="156" rx="14" fill="url(#skyGradDynamic)" />
               ${celestial}
               ${weatherEffects}
               ${basePlatform}
@@ -3222,7 +3222,6 @@
             }
             
             let particles = [];
-            let clouds = [];
             let sunAngle = 0;
             let time = 0;
             
@@ -3253,19 +3252,6 @@
                         vx: -1.0 + Math.random() * 2.0,
                         r: 2 + Math.random() * 3,
                         density: Math.random()
-                    });
-                }
-            }
-            
-            if (isCloudy) {
-                const cloudCount = isRain ? 4 : 2;
-                for (let i = 0; i < cloudCount; i++) {
-                    clouds.push({
-                        x: Math.random() * 600 - 100,
-                        y: 10 + Math.random() * 40,
-                        speed: 0.15 + Math.random() * 0.15,
-                        scale: 0.6 + Math.random() * 0.5,
-                        opacity: isRain ? 0.35 : 0.25
                     });
                 }
             }
@@ -3384,31 +3370,6 @@
                         if (p.y > canvas.height) {
                             p.y = -10;
                             p.x = Math.random() * canvas.width;
-                        }
-                    });
-                }
-                
-                if (isCloudy) {
-                    clouds.forEach(c => {
-                        ctx.fillStyle = isRain ? `rgba(156, 163, 175, ${c.opacity})` : `rgba(243, 244, 246, ${c.opacity})`;
-                        ctx.save();
-                        ctx.translate(c.x, c.y);
-                        ctx.scale(c.scale, c.scale);
-                        
-                        ctx.beginPath();
-                        ctx.arc(50, 50, 30, 0, Math.PI * 2);
-                        ctx.arc(90, 50, 40, 0, Math.PI * 2);
-                        ctx.arc(140, 55, 30, 0, Math.PI * 2);
-                        ctx.rect(50, 45, 90, 40);
-                        ctx.closePath();
-                        ctx.fill();
-                        
-                        ctx.restore();
-                        
-                        c.x += c.speed;
-                        if (c.x > canvas.width + 200) {
-                            c.x = -200;
-                            c.y = 10 + Math.random() * 40;
                         }
                     });
                 }

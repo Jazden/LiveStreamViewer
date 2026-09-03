@@ -465,9 +465,10 @@
             background: #000;
         }
 
-        .stream-player-container video,
-        .stream-player-container iframe,
-        .stream-player-container div {
+        .stream-player-container > video,
+        .stream-player-container > iframe,
+        .stream-player-container > .video-js,
+        .stream-player-container > div:not(.weather-cam-widget):not(.notes-widget-container) {
             width: 100% !important;
             height: 100% !important;
             border: none;
@@ -1775,18 +1776,23 @@
             left: 0;
             right: 0;
             bottom: 0;
-            padding: 40px 14px 14px 14px;
+            padding: 38px 12px 10px 12px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             color: var(--text-main);
             z-index: 2;
             font-family: var(--font-family);
-            background: rgba(3, 7, 18, 0.4);
-            backdrop-filter: saturate(140%);
-            -webkit-backdrop-filter: saturate(140%);
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(8px) saturate(140%);
+            -webkit-backdrop-filter: blur(8px) saturate(140%);
             overflow-y: auto;
-            gap: 10px;
+            gap: 8px;
+            box-sizing: border-box;
+        }
+
+        .weather-cam-widget div {
+            height: auto !important;
         }
 
         .wc-header-card {
@@ -1817,15 +1823,15 @@
         }
 
         .wc-frog-mini {
-            width: 75px;
-            height: 52px;
-            min-width: 75px;
-            min-height: 52px;
-            max-width: 75px;
-            max-height: 52px;
-            border-radius: 8px;
+            width: 96px;
+            height: 64px;
+            min-width: 96px;
+            min-height: 64px;
+            max-width: 96px;
+            max-height: 64px;
+            border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(255, 255, 255, 0.12);
             background: #0f172a;
             flex-shrink: 0;
@@ -1868,16 +1874,18 @@
         }
 
         .wc-hourly-pill {
-            flex: 0 0 46px;
+            flex: 0 0 52px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 3px;
-            padding: 6px 2px;
-            background: rgba(17, 24, 39, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            font-size: 0.65rem;
+            gap: 2px;
+            padding: 5px 3px;
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            font-size: 0.68rem;
             text-align: center;
         }
 
@@ -1938,22 +1946,25 @@
             grid-template-columns: repeat(5, 1fr);
             gap: 6px;
             width: 100%;
-            align-items: center;
+            align-items: stretch;
+            flex-shrink: 0;
         }
 
         .wc-forecast-day {
-            background: rgba(17, 24, 39, 0.55);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.04);
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 8px;
-            padding: 8px 4px;
+            padding: 5px 3px;
             text-align: center;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
             transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
 
         .wc-forecast-day:hover {
