@@ -497,10 +497,39 @@
         let weatherForecastPromise = null;
         let weatherForecastTimestamp = 0;
         
+        // Curated localized neighborhood mappings for prominent postal codes
+        const ZIP_NEIGHBORHOOD_MAP = {
+            '77099': { name: 'Belknap Acres, Houston', latitude: 29.6709, longitude: -95.5866 },
+            '77079': { name: 'West Houston, Texas', latitude: 29.7800, longitude: -95.6020 },
+            '77077': { name: 'Energy Corridor, Houston', latitude: 29.7610, longitude: -95.6140 },
+            '77042': { name: 'Westchase, Houston', latitude: 29.7280, longitude: -95.5490 },
+            '77072': { name: 'Alief, Houston', latitude: 29.7040, longitude: -95.5880 },
+            '77083': { name: 'Alief / West Houston', latitude: 29.7000, longitude: -95.6500 },
+            '77036': { name: 'Chinatown, Houston', latitude: 29.7090, longitude: -95.5250 },
+            '77002': { name: 'Downtown Houston, Texas', latitude: 29.7544, longitude: -95.3677 },
+            '77006': { name: 'Montrose, Houston', latitude: 29.7420, longitude: -95.3900 },
+            '77008': { name: 'The Heights, Houston', latitude: 29.7990, longitude: -95.4120 },
+            '77019': { name: 'River Oaks, Houston', latitude: 29.7560, longitude: -95.4180 },
+            '77024': { name: 'Memorial, Houston', latitude: 29.7740, longitude: -95.5220 },
+            '77056': { name: 'Galleria / Uptown, Houston', latitude: 29.7510, longitude: -95.4670 },
+            '77057': { name: 'Westchase / Galleria', latitude: 29.7400, longitude: -95.4900 }
+        };
+
+        const LOCAL_NAME_COORDINATES_MAP = {
+            'belknap acres': { name: 'Belknap Acres, Houston', latitude: 29.6709, longitude: -95.5866 },
+            'belknap': { name: 'Belknap Acres, Houston', latitude: 29.6709, longitude: -95.5866 },
+            'west houston': { name: 'West Houston, Texas', latitude: 29.7710, longitude: -95.6050 }
+        };
+
         // Zip code neighborhood localization via OpenStreetMap Nominatim with Zippopotam fallback
         async function resolveZipcodeToNeighborhood(zip) {
             const cleaned = zip.trim();
             if (!/^\d{5}$/.test(cleaned)) return null;
+
+            // 1. Direct match for known neighborhood subdivisions (e.g. 77099 -> Belknap Acres, Houston)
+            if (ZIP_NEIGHBORHOOD_MAP[cleaned]) {
+                return ZIP_NEIGHBORHOOD_MAP[cleaned];
+            }
 
             try {
                 const controller = new AbortController();
@@ -797,8 +826,16 @@
             weatherForecastPromise = (async () => {
                 let lat, lon, localizedName = null;
 
+                const lowerLocation = cityName.toLowerCase();
+                if (LOCAL_NAME_COORDINATES_MAP[lowerLocation]) {
+                    const match = LOCAL_NAME_COORDINATES_MAP[lowerLocation];
+                    lat = match.latitude;
+                    lon = match.longitude;
+                    localizedName = match.name;
+                }
+
                 // 1. Check if location is a 5-digit US zipcode
-                if (/^\d{5}$/.test(cityName)) {
+                if (!lat && /^\d{5}$/.test(cityName)) {
                     const resolved = await resolveZipcodeToNeighborhood(cityName);
                     if (resolved) {
                         lat = resolved.latitude;
@@ -953,6 +990,7 @@
                     updateHeaderLocation();
                     updateWeatherBadge(appState.location);
                     renderWeatherPanel();
+                    refreshWeatherDisplays();
                 } catch (e) {
                     console.error('Error parsing location config storage', e);
                     detectIpLocation();
@@ -980,6 +1018,7 @@
                     updateHeaderLocation();
                     updateWeatherBadge(appState.location);
                     renderWeatherPanel();
+                    refreshWeatherDisplays();
                 })
                 .catch(err => {
                     console.warn('IP geolocation error, falling back to Galveston:', err);
@@ -988,6 +1027,7 @@
                     updateHeaderLocation();
                     updateWeatherBadge(appState.location);
                     renderWeatherPanel();
+                    refreshWeatherDisplays();
                 });
         }
 
@@ -2610,11 +2650,18 @@
             appState.location = locationVal;
             appState.timezone = timezoneVal;
             
+            // Invalidate weather forecast cache to force immediate fetch of new location
+            weatherForecastCache = null;
+            weatherForecastLocation = null;
+            weatherForecastTimestamp = 0;
+            weatherForecastPromise = null;
+
             persistState();
             
             updateHeaderLocation();
             updateWeatherBadge(appState.location);
             renderWeatherPanel();
+            refreshWeatherDisplays();
             
             alert(`Location settings updated to ${locationVal}!`);
             closeSettings();
