@@ -1873,6 +1873,24 @@
             font-weight: 600;
         }
 
+        .wc-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+            margin-top: 1px;
+            white-space: nowrap;
+        }
+
+        .wc-meta-row span {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+
         .wc-header-right {
             display: flex;
             align-items: center;
@@ -1889,7 +1907,7 @@
         .wc-badges-col {
             display: flex;
             flex-direction: column;
-            gap: 3px;
+            gap: 2.5px;
             align-items: flex-end;
         }
 
@@ -1900,13 +1918,17 @@
         }
 
         .wc-mini-badge {
-            font-size: 0.65rem;
+            font-size: 0.62rem;
             font-weight: 700;
             padding: 2px 6px;
             border-radius: 4px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             color: var(--text-main);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            white-space: nowrap;
+            letter-spacing: 0.2px;
         }
 
         .wc-hourly-grid,

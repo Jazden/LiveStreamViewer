@@ -618,6 +618,133 @@
             return { val, text: `${val} (Hazardous)`, color: '#881337', level: 'hazardous', badgeBg: 'rgba(136, 19, 55, 0.25)' };
         }
 
+        // Cardinal wind direction conversion (0-360 degrees)
+        function getWindDirectionCardinal(degrees) {
+            if (degrees === null || degrees === undefined || isNaN(degrees)) return '';
+            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const idx = Math.round(degrees / 22.5) % 16;
+            return directions[idx];
+        }
+
+        // Comprehensive Pollen & Allergen Index computation
+        function getPollenCategory(aqiData, weatherData) {
+            // 1. Check if Open-Meteo regional pollen counts are available (e.g. CAMS domain)
+            const pollenFields = [
+                { name: 'Ragweed', val: aqiData?.ragweed_pollen },
+                { name: 'Grass', val: aqiData?.grass_pollen },
+                { name: 'Birch', val: aqiData?.birch_pollen },
+                { name: 'Alder', val: aqiData?.alder_pollen },
+                { name: 'Mugwort', val: aqiData?.mugwort_pollen },
+                { name: 'Olive', val: aqiData?.olive_pollen }
+            ].filter(p => p.val !== null && p.val !== undefined && !isNaN(p.val));
+
+            if (pollenFields.length > 0) {
+                pollenFields.sort((a, b) => b.val - a.val);
+                const dominant = pollenFields[0];
+                const count = dominant.val;
+                let level = 'low';
+                let color = '#22c55e';
+                let text = 'Low';
+                if (count > 50) {
+                    level = 'very-high';
+                    color = '#ef4444';
+                    text = 'V.High';
+                } else if (count > 20) {
+                    level = 'high';
+                    color = '#f97316';
+                    text = 'High';
+                } else if (count > 5) {
+                    level = 'moderate';
+                    color = '#eab308';
+                    text = 'Mod';
+                }
+                return {
+                    val: Math.round(count),
+                    level: level,
+                    levelText: text,
+                    dominant: dominant.name,
+                    color: color,
+                    badgeBg: color + '25',
+                    tooltip: `Pollen: ${text} (${Math.round(count)} gr/m³) • Dominant: ${dominant.name}`
+                };
+            }
+
+            // 2. Multi-factor seasonal & meteorological Allergen Index (US & global)
+            const now = new Date();
+            const month = now.getMonth(); // 0 = Jan, 8 = Sep
+            const wind = weatherData?.wind_speed_10m || 5;
+            const rain = weatherData?.precipitation || 0;
+            const humidity = weatherData?.relative_humidity_2m || 50;
+            const pm10 = aqiData?.pm10 || 15;
+
+            let baseIndex = 2.0;
+            let dominantSeason = 'Ragweed & Grasses';
+
+            if (month >= 1 && month <= 4) {
+                // Feb - May: Spring Tree Pollen (Oak, Cedar, Pine, Elm)
+                baseIndex = 5.2;
+                dominantSeason = 'Tree Pollen (Oak / Cedar)';
+            } else if (month >= 5 && month <= 6) {
+                // June - July: Summer Grass Pollen
+                baseIndex = 4.0;
+                dominantSeason = 'Grasses';
+            } else if (month >= 7 && month <= 9) {
+                // August - October: Late Summer/Fall Ragweed
+                baseIndex = 3.8;
+                dominantSeason = 'Ragweed & Weeds';
+            } else {
+                // Nov - Jan: Winter / Molds
+                baseIndex = 1.4;
+                dominantSeason = 'Dust & Mold';
+            }
+
+            // Weather modifier adjustments:
+            // High wind disperses pollen widely
+            if (wind > 14) baseIndex += 1.2;
+            else if (wind < 4) baseIndex -= 0.6;
+
+            // Active rain scrubs pollen out of the atmosphere
+            if (rain > 0.04) baseIndex *= 0.35;
+            else if (rain > 0) baseIndex *= 0.6;
+
+            // Dry air keeps pollen airborne; heavy humidity causes pollen to settle
+            if (humidity < 40) baseIndex += 0.8;
+            else if (humidity > 75) baseIndex -= 0.7;
+
+            // Particulate matter load
+            if (pm10 > 40) baseIndex += 0.5;
+
+            const finalIndex = Math.max(0.5, Math.min(11.0, Math.round(baseIndex * 10) / 10));
+
+            let level = 'low';
+            let color = '#22c55e';
+            let text = 'Low';
+
+            if (finalIndex >= 8.0) {
+                level = 'very-high';
+                color = '#ef4444';
+                text = 'V.High';
+            } else if (finalIndex >= 5.5) {
+                level = 'high';
+                color = '#f97316';
+                text = 'High';
+            } else if (finalIndex >= 2.5) {
+                level = 'moderate';
+                color = '#eab308';
+                text = 'Mod';
+            }
+
+            return {
+                val: finalIndex,
+                level: level,
+                levelText: text,
+                dominant: dominantSeason,
+                color: color,
+                badgeBg: color + '25',
+                tooltip: `Pollen & Allergen Index: ${finalIndex} (${text}) • Dominant: ${dominantSeason}`
+            };
+        }
+
         // Google Weather-style Animated Weather Frog Mascot ("Froggy") SVG generator
         function generateWeatherFrogSvg(code, isDay, temp, uv, aqi) {
             const isRain = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code);
@@ -858,9 +985,9 @@
                     localizedName = result.admin1 ? `${result.name}, ${result.admin1}` : result.name;
                 }
 
-                // 3. Concurrently fetch extended weather forecast (hourly, UV, daily) and Air Quality (AQI)
-                const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
-                const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10`;
+                // 3. Concurrently fetch extended weather forecast (hourly, UV, wind, gusts, daily) and Air Quality / Pollen (AQI)
+                const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+                const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,dust,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen`;
 
                 const [forecastRes, aqiRes] = await Promise.allSettled([
                     fetch(forecastUrl).then(r => {
@@ -1124,9 +1251,10 @@
                         heroIconEl.innerText = getWeatherEmoji(weatherCode);
                     }
 
-                    // UV & AQI Header Pills
+                    // UV, AQI & Pollen Header Pills
                     const uvInfo = getUvCategory(current.uv_index);
                     const aqiInfo = getAqiCategory(aqi.us_aqi);
+                    const pollenInfo = getPollenCategory(aqi, current);
 
                     const uvBadge = document.getElementById('wf-uv-badge');
                     if (uvBadge) {
@@ -1138,6 +1266,13 @@
                     if (aqiBadge) {
                         aqiBadge.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: ${aqiInfo.color}; display: inline-block;"></span> AQI: ${aqiInfo.text}`;
                         aqiBadge.style.borderColor = aqiInfo.color;
+                    }
+
+                    const pollenBadge = document.getElementById('wf-pollen-badge');
+                    if (pollenBadge) {
+                        pollenBadge.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: ${pollenInfo.color}; display: inline-block;"></span> Pollen: ${pollenInfo.levelText} (${pollenInfo.val})`;
+                        pollenBadge.style.borderColor = pollenInfo.color;
+                        pollenBadge.title = pollenInfo.tooltip;
                     }
 
                     // Environmental Metrics Cards
@@ -1169,8 +1304,24 @@
                         aqiSubEl.innerText = `PM2.5: ${pm25} µg/m³`;
                     }
 
+                    const pollenValEl = document.getElementById('wf-metric-pollen-val');
+                    if (pollenValEl) pollenValEl.innerText = pollenInfo.val;
+                    const pollenTagEl = document.getElementById('wf-metric-pollen-tag');
+                    if (pollenTagEl) {
+                        pollenTagEl.innerText = pollenInfo.level.toUpperCase();
+                        pollenTagEl.style.backgroundColor = pollenInfo.badgeBg;
+                        pollenTagEl.style.color = pollenInfo.color;
+                    }
+                    const pollenSubEl = document.getElementById('wf-metric-pollen-sub');
+                    if (pollenSubEl) pollenSubEl.innerText = `Dominant: ${pollenInfo.dominant}`;
+
+                    const windSpeed = Math.round(current.wind_speed_10m || 0);
+                    const windDir = getWindDirectionCardinal(current.wind_direction_10m);
+                    const windGusts = Math.round(current.wind_gusts_10m || 0);
                     const windEl = document.getElementById('wf-wind');
-                    if (windEl) windEl.innerText = `${Math.round(current.wind_speed_10m)} mph`;
+                    if (windEl) windEl.innerText = `${windSpeed} mph ${windDir}`.trim();
+                    const gustsEl = document.getElementById('wf-gusts');
+                    if (gustsEl) gustsEl.innerText = (windGusts > 0) ? `${windGusts} mph` : `${windSpeed} mph`;
                     const humidityEl = document.getElementById('wf-humidity');
                     if (humidityEl) humidityEl.innerText = `${current.relative_humidity_2m}%`;
 
@@ -3163,11 +3314,19 @@
                     const displayLocation = data.localizedLocation || appState.location;
                     const uvInfo = getUvCategory(data.current.uv_index);
                     const aqiInfo = getAqiCategory(aqi.us_aqi);
+                    const pollenInfo = getPollenCategory(aqi, data.current);
                     const weatherEmoji = getWeatherEmoji(code);
                     const feelsLike = Math.round(data.current.apparent_temperature || data.current.temperature_2m);
                     const todayMax = data.daily?.temperature_2m_max ? Math.round(data.daily.temperature_2m_max[0]) : temp;
                     const todayMin = data.daily?.temperature_2m_min ? Math.round(data.daily.temperature_2m_min[0]) : temp;
                     const theme = getWeatherTheme(code, isDay);
+                    
+                    const windSpeed = Math.round(data.current.wind_speed_10m || 0);
+                    const windDir = getWindDirectionCardinal(data.current.wind_direction_10m);
+                    const windGusts = Math.round(data.current.wind_gusts_10m || 0);
+                    const gustText = (windGusts > windSpeed + 2) ? ` (Gusts ${windGusts})` : '';
+                    const windStr = `${windSpeed} mph ${windDir}${gustText}`.trim();
+                    const humidity = Math.round(data.current.relative_humidity_2m || 0);
                     
                     const widget = document.getElementById(`weather-cam-widget-${stream.id}`);
                     if (!widget) return;
@@ -3244,12 +3403,17 @@
                                         <span>H: ${todayMax}° • L: ${todayMin}°</span>
                                         <span>Feels ${feelsLike}°</span>
                                     </div>
+                                    <div class="wc-meta-row">
+                                        <span>💨 ${windStr}</span>
+                                        <span>💧 ${humidity}% Hum</span>
+                                    </div>
                                 </div>
                                 <div class="wc-header-right">
                                     <div class="wc-main-emoji">${weatherEmoji}</div>
                                     <div class="wc-badges-col">
                                         <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
                                         <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
+                                        <span class="wc-mini-badge" style="border-color: ${pollenInfo.color}; color: ${pollenInfo.color};" title="${pollenInfo.tooltip}">POL ${pollenInfo.levelText}</span>
                                     </div>
                                 </div>
                             </div>
