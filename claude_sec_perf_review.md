@@ -207,7 +207,7 @@ transition: background-color 0.25s ease, opacity 0.25s ease, transform 0.25s eas
 | S1 | Security — URL Sanitization | 🔴 High | ✅ Resolved | ✅ Yes |
 | S2 | Security — MQTT Input Validation | 🔴 High | ✅ Resolved | ✅ Yes |
 | S3 | Security — Cookie Privacy Leak | 🟡 Medium | ✅ Resolved | ✅ Yes |
-| S4 | Security — Iframe Sandboxing | 🟡 Medium | Open | ✅ Yes |
+| S4 | Security — Iframe Sandboxing | 🟡 Medium | ✅ Resolved | ✅ Yes |
 | S5 | Security — JS String Escaping | 🟡 Medium | ✅ Resolved | ✅ Yes |
 | S6 | Security — CDN Integrity | 🟢 Low | Open | ✅ Yes |
 | S7 | Security — Pairing Cookie Lifetime | 🟢 Low | ✅ Resolved | ✅ Yes |

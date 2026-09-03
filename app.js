@@ -1532,8 +1532,9 @@
             else if (stream.type === 'iframe') {
                 const iframe = document.createElement('iframe');
                 iframe.src = stream.url;
+                iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
                 iframe.setAttribute('allowfullscreen', '');
-                iframe.setAttribute('allow', 'autoplay; encrypted-media');
+                iframe.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
                 const container = document.getElementById(`player-container-${stream.id}`);
                 if (!container) return;
                 container.appendChild(iframe);
@@ -2549,7 +2550,7 @@
                 `;
             } else {
                 playerHtml = `
-                    <iframe src="${escapedUrl}" frameborder="0" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
+                    <iframe src="${escapedUrl}" frameborder="0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="width:100%; height:100vh; border:none;"></iframe>
                 `;
             }
             
@@ -3208,6 +3209,7 @@
                         <iframe 
                             src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1" 
                             style="width: 100%; height: 100%; border: none;"
+                            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                             allowfullscreen>
                         </iframe>
