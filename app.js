@@ -491,16 +491,21 @@
         updateClock();
 
         // Weather cache variables
+        const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
         let weatherForecastCache = null;
         let weatherForecastLocation = null;
         let weatherForecastPromise = null;
+        let weatherForecastTimestamp = 0;
         
-        function fetchWeatherForecast(location) {
+        function fetchWeatherForecast(location, forceRefresh = false) {
             const cityName = location.split(',')[0].trim();
-            if (weatherForecastCache && weatherForecastLocation === cityName) {
+            const now = Date.now();
+            const isFresh = (now - weatherForecastTimestamp) < WEATHER_CACHE_TTL;
+
+            if (!forceRefresh && weatherForecastCache && weatherForecastLocation === cityName && isFresh) {
                 return Promise.resolve(weatherForecastCache);
             }
-            if (weatherForecastPromise && weatherForecastLocation === cityName) {
+            if (!forceRefresh && weatherForecastPromise && weatherForecastLocation === cityName && isFresh) {
                 return weatherForecastPromise;
             }
             
@@ -526,6 +531,8 @@
                 })
                 .then(data => {
                     weatherForecastCache = data;
+                    weatherForecastTimestamp = Date.now();
+                    weatherForecastPromise = null;
                     return data;
                 })
                 .catch(err => {
@@ -536,6 +543,23 @@
                 
             return weatherForecastPromise;
         }
+
+        // Periodic background weather refresh for continuous 24/7 TV/wall displays
+        function refreshWeatherDisplays() {
+            if (appState && appState.location) {
+                updateWeatherBadge(appState.location);
+                if (appState.streams) {
+                    const weatherStreams = appState.streams.filter(s => s.type === 'weather');
+                    weatherStreams.forEach(s => {
+                        const container = document.getElementById(`player-container-${s.id}`);
+                        if (container) {
+                            initializeWeatherCam(s);
+                        }
+                    });
+                }
+            }
+        }
+        setInterval(refreshWeatherDisplays, WEATHER_CACHE_TTL);
 
         // Weather text badge
         function updateWeatherBadge(location) {
@@ -1840,6 +1864,20 @@
             
             // Update floating status tab volume icon
             updateFloatingTabVolume(streamId);
+        }
+
+        // Toggle mute across all active stream players
+        function toggleMuteAll() {
+            const ids = Object.keys(activePlayers);
+            if (ids.length === 0) return;
+            const anyUnmuted = ids.some(id => !activePlayers[id].muted);
+            const targetMute = anyUnmuted;
+            ids.forEach(id => {
+                const p = activePlayers[id];
+                if (p && p.muted !== targetMute) {
+                    toggleMute(id);
+                }
+            });
         }
 
         function setStreamVolume(streamId, val) {
@@ -4605,6 +4643,110 @@
         window.connectTVSync = connectTVSync;
         window.disconnectTVSync = disconnectTVSync;
         window.updateTVSyncUI = updateTVSyncUI;
+        window.toggleMuteAll = toggleMuteAll;
+
+        // Global Keyboard Shortcuts
+        const LAYOUT_HOTKEYS = {
+            '1': 'cinema',
+            '2': 'grid-2x2',
+            '3': 'grid-2x3',
+            '4': 'grid-2x4',
+            '5': 'grid-3x3',
+            '6': 'grid-4x4',
+            '7': 'layout-1-5',
+            '8': 'layout-2-3'
+        };
+
+        function handleGlobalKeydown(e) {
+            const isTyping = e.target && (
+                e.target.tagName === 'INPUT' ||
+                e.target.tagName === 'TEXTAREA' ||
+                e.target.tagName === 'SELECT' ||
+                e.target.isContentEditable
+            );
+
+            // Escape: Dismiss active modals or menus
+            if (e.key === 'Escape') {
+                if (isTyping && typeof e.target.blur === 'function') {
+                    e.target.blur();
+                }
+                const previewModal = document.getElementById('preview-modal');
+                if (previewModal && previewModal.classList.contains('open')) {
+                    closePreviewModal();
+                    return;
+                }
+                const settingsModal = document.getElementById('settings-modal');
+                if (settingsModal && settingsModal.classList.contains('open')) {
+                    closeSettings();
+                    return;
+                }
+                const pairingModal = document.getElementById('pairing-modal');
+                if (pairingModal && pairingModal.classList.contains('open')) {
+                    closePairingModal();
+                    return;
+                }
+                const moreMenu = document.getElementById('more-controls-dropdown-menu');
+                if (moreMenu && moreMenu.classList.contains('show')) {
+                    const btn = document.getElementById('btn-more-toggle');
+                    moreMenu.classList.remove('show');
+                    if (btn) btn.classList.remove('active');
+                    return;
+                }
+                return;
+            }
+
+            // Guard: Ignore shortcuts while user is typing in form controls or holding modifier keys
+            if (isTyping || e.altKey || e.ctrlKey || e.metaKey) {
+                return;
+            }
+
+            const keyLower = e.key.toLowerCase();
+
+            // 'f': Toggle Fullscreen
+            if (keyLower === 'f') {
+                e.preventDefault();
+                toggleFS();
+                return;
+            }
+
+            // 'm': Toggle Mute All
+            if (keyLower === 'm') {
+                e.preventDefault();
+                toggleMuteAll();
+                return;
+            }
+
+            // 'c': Toggle Rotator / Auto-Cycle
+            if (keyLower === 'c') {
+                e.preventDefault();
+                toggleCycle();
+                return;
+            }
+
+            // ' ': Space bar toggles playback on active/first stream
+            if (e.code === 'Space') {
+                const ids = Object.keys(activePlayers);
+                if (ids.length > 0) {
+                    e.preventDefault();
+                    togglePlay(ids[0]);
+                }
+                return;
+            }
+
+            // '1' - '8': Switch layout presets
+            if (LAYOUT_HOTKEYS[e.key]) {
+                e.preventDefault();
+                const targetLayout = LAYOUT_HOTKEYS[e.key];
+                const select = document.getElementById('layout-select-dropdown');
+                if (select) {
+                    select.value = targetLayout;
+                }
+                handleLayoutChange(targetLayout);
+                return;
+            }
+        }
+
+        window.addEventListener('keydown', handleGlobalKeydown);
 
         // Run application
         initApp();

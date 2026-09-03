@@ -390,6 +390,37 @@
                     </p>
                     <button class="btn btn-danger" onclick="resetToSystemDefaults()" style="margin-bottom: 25px;">Reset All Configuration</button>
 
+                    <div class="form-section-title">Keyboard Shortcuts</div>
+                    <p class="about-text">
+                        Control your matrix console without taking your hands off the keyboard:
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 25px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Close Modals / Menus</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">Esc</kbd>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Toggle Fullscreen</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">F</kbd>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Toggle Mute All</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">M</kbd>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Switch Layouts</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">1 - 8</kbd>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Play / Pause Stream</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">Space</kbd>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Toggle Auto-Cycle</span>
+                            <kbd style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; color: var(--accent);">C</kbd>
+                        </div>
+                    </div>
+
                     <div class="form-section-title">Console Statistics</div>
                     <p class="about-text">
                         This console keeps track of global anonymous guest usage to monitor traffic levels.
@@ -490,6 +521,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js" integrity="sha384-ZFaJg22VvVm4+3ZqY9eRIHGmqdEQb+c7XO+0IKspqdtPGFu6xRiPnK8xeNA//kQJ" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" integrity="sha384-Dr98ddmUw2QkdCarNQ+OL7xLty7cSxgR0T7v1tq4UErS/qLV0132sBYTolRAFuOV" crossorigin="anonymous"></script>
     
-    <script src="app.js?v=1.9.9"></script>
+    <script src="app.js?v=2.0.0"></script>
 </body>
 </html>
