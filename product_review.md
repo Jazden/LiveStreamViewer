@@ -34,11 +34,11 @@ This document tracks all identified performance, architectural, and design issue
 - **Proposed Solution**: Introduce a debounce mechanism (e.g., 300ms delay) on the search input listener before executing status checks.
 - **Notes**: Resolved by introducing a 250ms `debounce()` helper on search input filtering and removing the `setTimeout(checkAllStreamsStatus, 100)` invocation from the sidebar render loop.
 
-### [ ] Multi-Role Code Duplication & HTML Bloat (`index.html`)
+### [x] Multi-Role Code Duplication & HTML Bloat (`index.html`)
 - **Category**: Architecture (Project Architect)
 - **Description**: The desktop view dashboard and the mobile remote share a single HTML document. Because of this, mobile devices are forced to parse massive blocks of desktop-only markup and load heavy scripts.
 - **Proposed Solution**: Refactor and extract the mobile-specific controller interface into its own clean page under the `/mobile/` path.
-- **Notes**: 
+- **Notes**: Resolved by extracting `#mobile-remote-container` (245 lines of HTML) to `mobile/index.html` and extracting mobile remote client logic (~700 lines of JS) into `mobile/remote.js`. Root viewer automatically redirects `?view=mobile` / `?pair=...` to `./mobile/`, and TV QR code links directly to `./mobile/`. Root `index.html` is reduced by 33% and `app.js` is reduced by over 1,000 lines. 
 
 ### [ ] Global Scope Pollution
 - **Category**: Architecture (Project Architect)

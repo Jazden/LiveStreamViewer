@@ -1,0 +1,1134 @@
+// LiveStreamViewer - Standalone Mobile Remote Controller
+(function() {
+    'use strict';
+
+    const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+    const LAYOUT_CAPACITIES = {
+        'cinema': 1,
+        'grid-2x2': 4,
+        'grid-2x3': 6,
+        'grid-2x4': 8,
+        'grid-3x3': 9,
+        'grid-4x4': 16,
+        'layout-1-5': 6,
+        'layout-2-3': 5
+    };
+
+    // Helper: HTML escaping
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        if (typeof str !== 'string') str = String(str);
+        return str.replace(/[&<>"']/g, function(m) {
+            switch (m) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case "'": return '&#39;';
+                default: return m;
+            }
+        });
+    }
+
+    // Cryptographic Helpers: HMAC-SHA256
+    async function computeHmacSha256(secret, message) {
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(secret);
+        const msgData = encoder.encode(message);
+
+        const cryptoKey = await crypto.subtle.importKey(
+            'raw',
+            keyData,
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+
+        const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+        const hashArray = Array.from(new Uint8Array(signatureBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function signMessage(payloadObj, secret) {
+        if (!secret) {
+            return JSON.stringify(payloadObj);
+        }
+        const messageToSign = JSON.stringify(payloadObj);
+        const signature = await computeHmacSha256(secret, messageToSign);
+        return JSON.stringify({
+            payload: payloadObj,
+            sig: signature
+        });
+    }
+
+    async function verifyMessage(rawMessageStr, secret) {
+        let parsed;
+        try {
+            parsed = JSON.parse(rawMessageStr);
+        } catch (e) {
+            return null;
+        }
+
+        if (parsed && parsed.payload && parsed.sig) {
+            if (!secret) {
+                console.warn('[Security Warning] Received signed message but no secret is configured for this display.');
+                return null;
+            }
+            const expectedSig = await computeHmacSha256(secret, JSON.stringify(parsed.payload));
+            if (expectedSig === parsed.sig) {
+                return parsed.payload;
+            } else {
+                console.error('[Security Error] HMAC signature verification failed!');
+                return null;
+            }
+        }
+        return parsed;
+    }
+
+    function getMqttTopic(code) {
+        let hash = 0;
+        const str = "ls_salt_" + code;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return `livestreamviewer/topic_${Math.abs(hash)}`;
+    }
+
+    // --- STATE MANAGEMENT ---
+    let pairedDisplays = [];
+    let remoteMqttClient = null;
+    let remotePairCode = '';
+    let remoteState = null;
+    let remoteDragSourceId = null;
+    let selectedRemoteStreamId = null;
+
+    function loadPairedDisplays(currentCode) {
+        pairedDisplays = [];
+        try {
+            const saved = localStorage.getItem('remote_paired_displays');
+            if (saved) {
+                pairedDisplays = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.error('[Storage Error] Failed to read from localStorage:', e);
+        }
+        if (!Array.isArray(pairedDisplays)) {
+            pairedDisplays = [];
+        }
+
+        if (currentCode) {
+            const codeStr = String(currentCode).trim();
+            if (codeStr !== '') {
+                let secret = '';
+                if (window.location.hash) {
+                    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                    secret = hashParams.get('secret') || '';
+                }
+                const existingIndex = pairedDisplays.findIndex(d => d.code === codeStr);
+                if (existingIndex === -1) {
+                    pairedDisplays.push({
+                        name: 'Display ' + codeStr,
+                        code: codeStr,
+                        hmacKey: secret
+                    });
+                    savePairedDisplays();
+                } else if (secret) {
+                    if (pairedDisplays[existingIndex].hmacKey !== secret) {
+                        pairedDisplays[existingIndex].hmacKey = secret;
+                        savePairedDisplays();
+                    }
+                }
+            }
+        }
+    }
+
+    function savePairedDisplays() {
+        try {
+            localStorage.setItem('remote_paired_displays', JSON.stringify(pairedDisplays));
+        } catch (e) {
+            console.error('[Storage Error] Failed to write to localStorage:', e);
+        }
+    }
+
+    function initMobileRemote(code) {
+        document.body.classList.add('remote-mode');
+
+        if (remoteMqttClient) {
+            try {
+                remoteMqttClient.end(true);
+            } catch (e) {}
+            remoteMqttClient = null;
+        }
+
+        loadPairedDisplays(code);
+
+        if ((!code || code.trim() === '') && pairedDisplays.length > 0) {
+            code = pairedDisplays[0].code;
+        }
+
+        remotePairCode = code || '';
+
+        renderDisplaySwitcherHeader();
+        renderPairedDisplaysSettings();
+        updateTVSyncDropdowns();
+
+        const entryCard = document.getElementById('remote-pairing-entry-card');
+        const disOverlay = document.getElementById('remote-disconnected-overlay');
+        const ctrlDeck = document.getElementById('remote-control-deck');
+
+        if (!remotePairCode || remotePairCode.trim() === '') {
+            if (entryCard) entryCard.classList.remove('hidden');
+            if (disOverlay) disOverlay.classList.add('hidden');
+            if (ctrlDeck) ctrlDeck.classList.add('hidden');
+            return;
+        }
+
+        if (entryCard) entryCard.classList.add('hidden');
+        if (disOverlay) disOverlay.classList.remove('hidden');
+        if (ctrlDeck) ctrlDeck.classList.add('hidden');
+
+        const topic = getMqttTopic(remotePairCode);
+        console.log(`[Mobile Remote] Connecting. Code: ${code}, Topic: ${topic}`);
+
+        try {
+            remoteMqttClient = mqtt.connect(MQTT_BROKER, {
+                clientId: 'livestreamviewer_remote_' + Math.random().toString(16).substring(2, 8),
+                keepalive: 60,
+                reconnectPeriod: 5000
+            });
+
+            remoteMqttClient.on('connect', () => {
+                console.log('[Mobile Remote] Connected to MQTT broker');
+                remoteMqttClient.subscribe(topic, (err) => {
+                    if (!err) {
+                        console.log(`[Mobile Remote] Subscribed to topic: ${topic}`);
+                        updateRemoteStatus(true);
+                        sendRemoteCommand('ping');
+                    }
+                });
+            });
+
+            remoteMqttClient.on('message', async (receivedTopic, message) => {
+                if (receivedTopic === topic) {
+                    try {
+                        const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+                        const secret = currentDisplay ? (currentDisplay.hmacKey || '') : '';
+                        const verifiedData = await verifyMessage(message.toString(), secret);
+                        if (verifiedData && verifiedData.from === 'tv' && verifiedData.type === 'sync') {
+                            handleRemoteSync(verifiedData);
+                        }
+                    } catch (e) {
+                        console.error('[Mobile Remote] Error parsing message:', e);
+                    }
+                }
+            });
+
+            remoteMqttClient.on('close', () => {
+                console.log('[Mobile Remote] Connection closed');
+                updateRemoteStatus(false);
+            });
+
+            remoteMqttClient.on('error', (err) => {
+                console.error('[Mobile Remote] MQTT Error:', err);
+                updateRemoteStatus(false);
+            });
+        } catch (e) {
+            console.error('[Mobile Remote] MQTT init failed:', e);
+        }
+    }
+
+    function updateRemoteStatus(isConnected) {
+        const connDot = document.getElementById('remote-conn-dot');
+        if (connDot) {
+            if (isConnected) {
+                connDot.className = 'status-dot-mini online';
+                connDot.style.backgroundColor = '#10b981';
+                connDot.style.boxShadow = '0 0 6px #10b981';
+            } else {
+                connDot.className = 'status-dot-mini checking';
+                connDot.style.backgroundColor = 'var(--text-muted)';
+                connDot.style.boxShadow = '0 0 6px var(--text-muted)';
+            }
+        }
+    }
+
+    function handleRemoteSync(data) {
+        remoteState = data;
+
+        const disOverlay = document.getElementById('remote-disconnected-overlay');
+        if (disOverlay) disOverlay.classList.add('hidden');
+
+        const ctrlDeck = document.getElementById('remote-control-deck');
+        if (ctrlDeck) ctrlDeck.classList.remove('hidden');
+
+        updateRemoteStatus(true);
+
+        document.querySelectorAll('.remote-grid-2col .remote-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeLayoutBtn = document.getElementById('remote-layout-' + data.layout);
+        if (activeLayoutBtn) activeLayoutBtn.classList.add('active');
+
+        const cycleBtn = document.getElementById('remote-btn-cycle');
+        if (cycleBtn) {
+            if (data.cycleActive) {
+                cycleBtn.innerText = 'Auto-Cycle Rotator: ON';
+                cycleBtn.classList.add('active');
+            } else {
+                cycleBtn.innerText = 'Auto-Cycle Rotator: OFF';
+                cycleBtn.classList.remove('active');
+            }
+        }
+
+        renderRemoteActiveStreamsList();
+        renderRemoteLibraryStreamsList();
+        renderRemotePresetsList();
+        renderRemoteVirtualGrid();
+        renderRemoteMainVirtualGrid();
+        renderRemoteArrangeLibraryList();
+    }
+
+    function renderRemoteActiveStreamsList() {
+        const listEl = document.getElementById('remote-active-streams-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const activeStreams = (remoteState.streams || []).filter(s => s.active);
+        if (activeStreams.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px dashed var(--border-color);">No active streams on TV screen.</div>';
+            return;
+        }
+
+        activeStreams.forEach(stream => {
+            const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false, volume: 100 };
+            const isPlaying = playerStatus.isPlaying !== false;
+            const isMuted = playerStatus.isMuted === true;
+
+            const item = document.createElement('div');
+            item.className = 'remote-list-item';
+
+            const escName = escapeHtml(stream.name);
+            const escCat = escapeHtml(stream.category);
+            const escType = escapeHtml(stream.type.toUpperCase());
+            const escId = escapeHtml(stream.id);
+
+            const titleHtml = `<div class="remote-item-info">
+                <div class="remote-item-title">${escName}</div>
+                <div class="remote-item-desc">${escCat} • ${escType}</div>
+            </div>`;
+
+            const actionsHtml = `<div class="remote-item-actions" style="display: flex; gap: 6px;">
+                <button class="remote-action-btn" data-action="move-up" data-stream-id="${escId}" title="Move Up" style="font-size: 0.75rem;">▲</button>
+                <button class="remote-action-btn" data-action="move-down" data-stream-id="${escId}" title="Move Down" style="font-size: 0.75rem;">▼</button>
+                <button class="remote-action-btn ${isPlaying ? 'active' : ''}" data-action="toggle-play" data-stream-id="${escId}" title="Play / Pause">${isPlaying ? '⏸️' : '▶️'}</button>
+                <button class="remote-action-btn ${isMuted ? 'active' : ''}" data-action="toggle-mute" data-stream-id="${escId}" title="Mute / Unmute">${isMuted ? '🔇' : '🔊'}</button>
+                <button class="remote-action-btn" data-action="fullscreen" data-stream-id="${escId}" title="Fullscreen">🖥️</button>
+            </div>`;
+
+            const volumeControlHtml = `<div style="display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                <span style="font-size: 0.75rem; color: var(--text-muted); width: 30px;">Vol</span>
+                <input type="range" class="remote-volume-slider" data-stream-id="${escId}" min="0" max="100" value="${isMuted ? 0 : (playerStatus.volume !== undefined ? playerStatus.volume : 100)}" style="flex: 1; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); outline: none; margin: 0 4px; accent-color: var(--accent); cursor: pointer;">
+                <span class="vol-label" style="font-size: 0.75rem; color: var(--text-muted); min-width: 32px; text-align: right;">${isMuted ? 'Muted' : (playerStatus.volume !== undefined ? playerStatus.volume + '%' : '100%')}</span>
+            </div>`;
+
+            item.innerHTML = `<div style="display: flex; flex-direction: column; width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    ${titleHtml}
+                    ${actionsHtml}
+                </div>
+                ${volumeControlHtml}
+            </div>`;
+
+            item.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                const action = btn.getAttribute('data-action');
+                const streamId = btn.getAttribute('data-stream-id');
+                if (action === 'move-up') {
+                    sendRemoteCommand('moveStream', { id: streamId, direction: 'up' });
+                } else if (action === 'move-down') {
+                    sendRemoteCommand('moveStream', { id: streamId, direction: 'down' });
+                } else if (action === 'toggle-play') {
+                    sendRemoteCommand('togglePlay', { streamId: streamId });
+                } else if (action === 'toggle-mute') {
+                    sendRemoteCommand('toggleMute', { streamId: streamId });
+                } else if (action === 'fullscreen') {
+                    sendRemoteCommand('fullscreenStream', { streamId: streamId });
+                }
+            });
+
+            const slider = item.querySelector('.remote-volume-slider');
+            const label = item.querySelector('.vol-label');
+            slider.addEventListener('change', (e) => {
+                sendRemoteCommand('setVolume', { streamId: stream.id, volume: e.target.value });
+            });
+            slider.addEventListener('input', (e) => {
+                label.innerText = e.target.value + '%';
+            });
+
+            listEl.appendChild(item);
+        });
+    }
+
+    function renderRemoteLibraryStreamsList() {
+        const listEl = document.getElementById('remote-library-streams-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const streams = remoteState.streams || [];
+        if (streams.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 10px; text-align: center;">Library is empty.</div>';
+            return;
+        }
+
+        streams.forEach(stream => {
+            const item = document.createElement('div');
+            item.className = 'remote-list-item';
+
+            const escName = escapeHtml(stream.name);
+            const escCat = escapeHtml(stream.category);
+            const escType = escapeHtml(stream.type.toUpperCase());
+
+            const titleHtml = `<div class="remote-item-info">
+                <div class="remote-item-title">${escName}</div>
+                <div class="remote-item-desc">${escCat} • ${escType}</div>
+            </div>`;
+
+            const switchHtml = `<div class="remote-item-actions">
+                <label class="remote-switch">
+                    <input type="checkbox" ${stream.active ? 'checked' : ''}>
+                    <span class="remote-slider"></span>
+                </label>
+            </div>`;
+
+            item.innerHTML = titleHtml + switchHtml;
+
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            checkbox.addEventListener('change', (e) => {
+                sendRemoteCommand('toggleStream', { streamId: stream.id, checked: e.target.checked });
+            });
+
+            listEl.appendChild(item);
+        });
+    }
+
+    function renderRemotePresetsList() {
+        const listEl = document.getElementById('remote-presets-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const presets = remoteState.presets || [];
+        if (presets.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px dashed var(--border-color);">No saved presets found on TV.</div>';
+            return;
+        }
+
+        presets.forEach(preset => {
+            const item = document.createElement('div');
+            item.className = 'remote-list-item';
+
+            const escName = escapeHtml(preset.name);
+            const escLayout = escapeHtml(preset.layout);
+
+            const titleHtml = `<div class="remote-item-info">
+                <div class="remote-item-title">${escName}</div>
+                <div class="remote-item-desc">Layout: ${escLayout} • ${(preset.streams || preset.activeStreamIds || []).length} channels</div>
+            </div>`;
+
+            const actionHtml = `<div class="remote-item-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn btn-sm btn-primary btn-load" style="padding: 6px 12px; font-size: 0.75rem;">Load</button>
+                <button class="btn btn-sm btn-danger btn-delete" style="padding: 6px 8px; font-size: 0.75rem; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 26px; width: 26px; border: none; cursor: pointer; color: #ef4444; background: rgba(239, 68, 68, 0.1);">✕</button>
+            </div>`;
+
+            item.innerHTML = titleHtml + actionHtml;
+
+            item.querySelector('.btn-load').addEventListener('click', () => {
+                sendRemoteCommand('loadPreset', { name: preset.name });
+            });
+            item.querySelector('.btn-delete').addEventListener('click', () => {
+                handleRemoteDeletePreset(preset.name);
+            });
+
+            listEl.appendChild(item);
+        });
+    }
+
+    function promptRemoteSavePreset() {
+        const name = prompt("Enter a name for the current layout preset:");
+        if (name) {
+            const trimmed = name.trim();
+            if (trimmed) {
+                sendRemoteCommand('savePreset', { name: trimmed });
+            }
+        }
+    }
+
+    function handleRemoteDeletePreset(name) {
+        if (confirm(`Are you sure you want to delete preset "${name}"?`)) {
+            sendRemoteCommand('deletePreset', { name: name });
+        }
+    }
+
+    function switchRemoteTab(tabId) {
+        document.querySelectorAll('.remote-tabs .remote-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeTabBtn = document.getElementById('btn-' + tabId);
+        if (activeTabBtn) activeTabBtn.classList.add('active');
+
+        document.querySelectorAll('.remote-content .remote-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        const targetContent = document.getElementById(tabId);
+        if (targetContent) targetContent.classList.add('active');
+    }
+
+    async function sendRemoteCommand(action, data = {}) {
+        if (remoteMqttClient && remoteMqttClient.connected) {
+            const topic = getMqttTopic(remotePairCode);
+            const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+            const secret = currentDisplay ? (currentDisplay.hmacKey || '') : '';
+            
+            const payload = {
+                from: 'remote',
+                action: action,
+                data: data
+            };
+            const signedPayload = await signMessage(payload, secret);
+            remoteMqttClient.publish(topic, signedPayload);
+            console.log('[Mobile Remote] Sent command:', action);
+        }
+    }
+
+    function handleRemoteAddStream(event) {
+        event.preventDefault();
+        const nameEl = document.getElementById('remote-add-name');
+        const urlEl = document.getElementById('remote-add-url');
+        const typeEl = document.getElementById('remote-add-type');
+
+        const name = nameEl.value.trim();
+        const url = urlEl.value.trim();
+        const type = typeEl.value;
+
+        if (!name || !url) return;
+
+        sendRemoteCommand('addStream', {
+            stream: {
+                name: name,
+                url: url,
+                type: type,
+                category: 'Remote Custom'
+            }
+        });
+
+        nameEl.value = '';
+        urlEl.value = '';
+
+        alert(`Command sent: Add stream "${name}"`);
+    }
+
+    function connectWithInputCode() {
+        const inputEl = document.getElementById('remote-pairing-input');
+        if (!inputEl) return;
+        const code = inputEl.value.trim();
+        if (code.length !== 6 || isNaN(code)) {
+            alert('Please enter a valid 6-digit pairing code.');
+            return;
+        }
+        window.location.href = window.location.pathname + "?pair=" + code;
+    }
+
+    function handleRemoteDragStart(e, streamId) {
+        remoteDragSourceId = streamId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', streamId);
+        
+        const item = e.currentTarget;
+        if (item) item.classList.add('dragging');
+    }
+
+    function handleRemoteDragOver(e) {
+        if (e.preventDefault) {
+            e.preventDefault();
+        }
+        e.currentTarget.classList.add('drag-over');
+        return false;
+    }
+
+    function handleRemoteDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleRemoteDrop(e, slotIndex, targetStreamId) {
+        e.stopPropagation();
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+
+        document.querySelectorAll('.remote-draggable-item, .remote-virtual-slot').forEach(item => {
+            item.classList.remove('dragging');
+        });
+
+        if (!remoteDragSourceId) return false;
+
+        if (targetStreamId) {
+            if (remoteDragSourceId !== targetStreamId) {
+                sendRemoteCommand('swapStreams', { id1: remoteDragSourceId, id2: targetStreamId });
+            }
+        } else {
+            sendRemoteCommand('placeStream', { streamId: remoteDragSourceId, slotIndex: slotIndex });
+        }
+        remoteDragSourceId = null;
+        return false;
+    }
+
+    function handleRemoteSlotClick(slotIndex, streamId) {
+        if (selectedRemoteStreamId) {
+            if (streamId) {
+                if (selectedRemoteStreamId !== streamId) {
+                    sendRemoteCommand('swapStreams', { id1: selectedRemoteStreamId, id2: streamId });
+                }
+            } else {
+                sendRemoteCommand('placeStream', { streamId: selectedRemoteStreamId, slotIndex: slotIndex });
+            }
+            selectedRemoteStreamId = null;
+            renderRemoteArrangeLibraryList();
+        }
+    }
+
+    function handleRemoteLibraryItemClick(streamId) {
+        if (selectedRemoteStreamId === streamId) {
+            selectedRemoteStreamId = null;
+        } else {
+            selectedRemoteStreamId = streamId;
+        }
+        renderRemoteArrangeLibraryList();
+    }
+
+    function renderRemoteVirtualGrid() {
+        const gridEl = document.getElementById('remote-virtual-grid');
+        if (!gridEl) return;
+        gridEl.innerHTML = '';
+
+        const layout = remoteState.layout || 'cinema';
+        const capacity = LAYOUT_CAPACITIES[layout] || 4;
+        const activeStreams = (remoteState.streams || []).filter(s => s.active);
+
+        gridEl.className = 'remote-virtual-grid-container ' + layout;
+        gridEl.style.gridTemplateColumns = '';
+
+        const labelTextFunc = (idx) => capacity > 6 ? `#${idx + 1}` : `Window ${idx + 1}`;
+
+        for (let i = 0; i < capacity; i++) {
+            const stream = activeStreams[i];
+            const slot = document.createElement('div');
+            
+            let slotClass = 'remote-virtual-slot';
+            if (layout === 'layout-1-5') {
+                if (i === 0) slotClass += ' large';
+            } else if (layout === 'layout-2-3') {
+                if (i < 2) slotClass += ' large';
+                else slotClass += ' small';
+            }
+
+            if (stream) {
+                slot.className = slotClass + ' active';
+                slot.draggable = true;
+                
+                const escName = escapeHtml(stream.name);
+
+                slot.addEventListener('dragstart', (event) => handleRemoteDragStart(event, stream.id));
+                slot.addEventListener('dragover', (event) => handleRemoteDragOver(event));
+                slot.addEventListener('dragleave', (event) => handleRemoteDragLeave(event));
+                slot.addEventListener('drop', (event) => handleRemoteDrop(event, i, stream.id));
+                slot.addEventListener('click', () => handleRemoteSlotClick(i, stream.id));
+                
+                slot.innerHTML = `
+                    <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                    <div class="remote-slot-name">${escName}</div>
+                    <button class="remote-slot-remove-btn" title="Remove stream">✕</button>
+                `;
+                
+                slot.querySelector('.remote-slot-remove-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    sendRemoteCommand('toggleStream', { streamId: stream.id, checked: false });
+                });
+            } else {
+                slot.className = slotClass;
+                slot.addEventListener('dragover', (event) => handleRemoteDragOver(event));
+                slot.addEventListener('dragleave', (event) => handleRemoteDragLeave(event));
+                slot.addEventListener('drop', (event) => handleRemoteDrop(event, i, null));
+                slot.addEventListener('click', () => handleRemoteSlotClick(i, null));
+                
+                slot.innerHTML = `
+                    <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                    <div class="remote-slot-empty">Empty</div>
+                `;
+            }
+            gridEl.appendChild(slot);
+        }
+    }
+
+    function renderRemoteMainVirtualGrid() {
+        const gridEl = document.getElementById('remote-main-virtual-grid');
+        if (!gridEl) return;
+        gridEl.innerHTML = '';
+
+        const layout = remoteState.layout || 'cinema';
+        const capacity = LAYOUT_CAPACITIES[layout] || 4;
+        const activeStreams = (remoteState.streams || []).filter(s => s.active);
+
+        gridEl.className = 'remote-virtual-grid-container ' + layout;
+        gridEl.style.gridTemplateColumns = '';
+
+        const labelTextFunc = (idx) => capacity > 6 ? `#${idx + 1}` : `Window ${idx + 1}`;
+
+        for (let i = 0; i < capacity; i++) {
+            const stream = activeStreams[i];
+            const slot = document.createElement('div');
+            
+            let slotClass = 'remote-virtual-slot';
+            if (layout === 'layout-1-5') {
+                if (i === 0) slotClass += ' large';
+            } else if (layout === 'layout-2-3') {
+                if (i < 2) slotClass += ' large';
+                else slotClass += ' small';
+            }
+
+            if (stream) {
+                slot.className = slotClass + ' active';
+                
+                const escName = escapeHtml(stream.name);
+
+                slot.addEventListener('click', () => {
+                    sendRemoteCommand('togglePlay', { streamId: stream.id });
+                });
+                
+                const playerStatus = (remoteState.activePlayersStatus || {})[stream.id] || { isPlaying: true, isMuted: false };
+                const isPlaying = playerStatus.isPlaying !== false;
+                const isMuted = playerStatus.isMuted === true;
+
+                const statusIcon = isPlaying ? '⏸️' : '▶️';
+                const muteIcon = isMuted ? '🔇' : '🔊';
+
+                slot.innerHTML = `
+                    <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                    <div class="remote-slot-name">${escName}</div>
+                    <div style="display: flex; gap: 6px; font-size: 0.8rem; margin-top: 4px; align-items: center; justify-content: center; pointer-events: none;">
+                        <span>${statusIcon}</span>
+                        <span>${muteIcon}</span>
+                    </div>
+                `;
+            } else {
+                slot.className = slotClass;
+                slot.innerHTML = `
+                    <div class="remote-slot-index">${labelTextFunc(i)}</div>
+                    <div class="remote-slot-empty">Empty</div>
+                `;
+            }
+            gridEl.appendChild(slot);
+        }
+    }
+
+    function openRemoteLayoutSelector() {
+        const popup = document.getElementById('remote-layout-popup');
+        if (popup) popup.classList.add('open');
+    }
+
+    function closeRemoteLayoutSelector() {
+        const popup = document.getElementById('remote-layout-popup');
+        if (popup) popup.classList.remove('open');
+    }
+
+    function closeRemoteLayoutSelectorOnOverlay(e) {
+        if (e.target === document.getElementById('remote-layout-popup')) {
+            closeRemoteLayoutSelector();
+        }
+    }
+
+    function renderRemoteArrangeLibraryList() {
+        const listEl = document.getElementById('remote-arrange-library-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const streams = remoteState.streams || [];
+        if (streams.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 10px; text-align: center;">No channels in library.</div>';
+            return;
+        }
+
+        streams.forEach(stream => {
+            const item = document.createElement('div');
+            const isSelected = selectedRemoteStreamId === stream.id;
+            
+            item.className = 'remote-list-item remote-draggable-item ' + (isSelected ? 'selected' : '');
+            item.draggable = true;
+            
+            const escName = escapeHtml(stream.name);
+            const escCat = escapeHtml(stream.category);
+
+            item.addEventListener('dragstart', (event) => handleRemoteDragStart(event, stream.id));
+            item.addEventListener('click', () => handleRemoteLibraryItemClick(stream.id));
+
+            const titleHtml = `<div class="remote-item-info">
+                <div class="remote-item-title">${escName}</div>
+                <div class="remote-item-desc">${escCat} • ${stream.active ? 'ACTIVE' : 'INACTIVE'}</div>
+            </div>`;
+
+            const indicatorHtml = `<div class="remote-item-actions" style="font-size: 1.1rem; color: var(--text-muted); margin-right: 4px;">
+                ${stream.active ? '🟢' : '⚪'}
+            </div>`;
+
+            item.innerHTML = titleHtml + indicatorHtml;
+            listEl.appendChild(item);
+        });
+    }
+
+    function renderDisplaySwitcherHeader() {
+        const container = document.getElementById('remote-code-badge');
+        if (!container) return;
+        
+        const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+        const displayName = currentDisplay ? currentDisplay.name : (remotePairCode ? 'CODE: ' + remotePairCode : 'UNPAIRED');
+        
+        let badgeStyle = 'background: rgba(6, 182, 212, 0.15); color: var(--accent); border-color: var(--border-color);';
+        let warningText = '';
+        if (currentDisplay && !currentDisplay.hmacKey) {
+            badgeStyle = 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.3);';
+            warningText = ' <span style="font-size: 0.75rem;" title="Insecure connection (no signature)">⚠️</span>';
+        }
+        
+        container.style.cssText = `font-family: inherit; font-size: 0.8rem; font-weight: 700; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none; transition: all 0.2s; ${badgeStyle}`;
+        container.innerHTML = `📺 <span style="margin-left: 2px;">${escapeHtml(displayName)}</span>${warningText} <span style="font-size: 0.65rem; opacity: 0.7; margin-left: 4px;">▼</span>`;
+    }
+
+    function openRemoteSwitcherPopup() {
+        const popup = document.getElementById('remote-switcher-popup');
+        if (!popup) return;
+        
+        const activeNameEl = document.getElementById('remote-switcher-active-name');
+        if (activeNameEl) {
+            const currentDisplay = pairedDisplays.find(d => d.code === remotePairCode);
+            activeNameEl.innerText = currentDisplay ? `${currentDisplay.name} (${currentDisplay.code})` : (remotePairCode ? `Display ${remotePairCode}` : 'None Connected');
+        }
+
+        const listEl = document.getElementById('remote-switcher-list');
+        if (listEl) {
+            listEl.innerHTML = '';
+            if (pairedDisplays.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 8px;">No displays paired yet.</div>';
+            } else {
+                pairedDisplays.forEach(d => {
+                    const isCurrent = d.code === remotePairCode;
+                    const item = document.createElement('div');
+                    item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
+                    item.style.cursor = 'pointer';
+                    
+                    item.addEventListener('click', () => {
+                        selectDisplayFromSwitcher(d.code);
+                    });
+                    
+                    const titleHtml = `<div class="remote-item-info">
+                        <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escapeHtml(d.name)} ${d.hmacKey ? '' : '<span style="color:#ef4444;" title="Insecure Connection">⚠️</span>'}</div>
+                        <div class="remote-item-desc">Code: ${escapeHtml(d.code)}</div>
+                    </div>`;
+                    
+                    const indicatorHtml = `<div class="remote-item-actions">
+                        ${isCurrent ? '<span style="color: var(--accent); font-weight: 700; font-size: 0.8rem;">Active 🟢</span>' : '<span style="color: var(--text-muted); font-size: 0.75rem;">Tap to Switch</span>'}
+                    </div>`;
+                    
+                    item.innerHTML = titleHtml + indicatorHtml;
+                    listEl.appendChild(item);
+                });
+            }
+        }
+        popup.classList.add('open');
+    }
+
+    function closeRemoteSwitcherPopup() {
+        const popup = document.getElementById('remote-switcher-popup');
+        if (popup) popup.classList.remove('open');
+    }
+
+    function closeRemoteSwitcherOnOverlay(e) {
+        if (e.target === document.getElementById('remote-switcher-popup')) {
+            closeRemoteSwitcherPopup();
+        }
+    }
+
+    function selectDisplayFromSwitcher(code) {
+        switchRemotePairing(code);
+        closeRemoteSwitcherPopup();
+    }
+
+    function switchRemotePairing(newCode) {
+        initMobileRemote(newCode);
+    }
+
+    function addNewPairingFromSettings() {
+        const inputEl = document.getElementById('remote-add-pairing-input');
+        if (!inputEl) return;
+        const code = inputEl.value.trim();
+        
+        if (code.length !== 6 || isNaN(code)) {
+            alert('Please enter a valid 6-digit pairing code.');
+            return;
+        }
+
+        const exists = pairedDisplays.some(d => d.code === code);
+        if (exists) {
+            alert('This display is already paired.');
+            return;
+        }
+
+        pairedDisplays.push({
+            name: 'Display ' + code,
+            code: code,
+            hmacKey: ''
+        });
+        savePairedDisplays();
+
+        inputEl.value = '';
+
+        renderDisplaySwitcherHeader();
+        renderPairedDisplaysSettings();
+        updateTVSyncDropdowns();
+        
+        switchRemotePairing(code);
+        alert(`Display ${code} added and connected!`);
+    }
+
+    function removePairing(code) {
+        const displayObj = pairedDisplays.find(d => d.code === code);
+        const displayName = displayObj ? displayObj.name : code;
+        if (confirm(`Are you sure you want to remove Display "${displayName}"?`)) {
+            pairedDisplays = pairedDisplays.filter(d => d.code !== code);
+            savePairedDisplays();
+            
+            if (remotePairCode === code) {
+                const nextCode = pairedDisplays.length > 0 ? pairedDisplays[0].code : '';
+                switchRemotePairing(nextCode);
+            } else {
+                renderDisplaySwitcherHeader();
+                renderPairedDisplaysSettings();
+                updateTVSyncDropdowns();
+            }
+        }
+    }
+
+    function renamePairing(code) {
+        const display = pairedDisplays.find(d => d.code === code);
+        if (!display) return;
+        
+        const newName = prompt(`Enter a new name for Display "${display.name}":`, display.name);
+        if (newName) {
+            const trimmed = newName.trim();
+            if (trimmed) {
+                display.name = trimmed;
+                savePairedDisplays();
+                
+                renderDisplaySwitcherHeader();
+                renderPairedDisplaysSettings();
+                updateTVSyncDropdowns();
+            }
+        }
+    }
+
+    function updateTVSyncDropdowns() {
+        const slaveSelect = document.getElementById('remote-sync-slave-select');
+        const masterSelect = document.getElementById('remote-sync-master-select');
+        if (!slaveSelect || !masterSelect) return;
+        
+        slaveSelect.innerHTML = '<option value="">-- Select Slave TV --</option>';
+        masterSelect.innerHTML = '<option value="">-- Select Master TV --</option>';
+
+        pairedDisplays.forEach(d => {
+            const escName = escapeHtml(d.name);
+            const escCode = escapeHtml(d.code);
+            slaveSelect.innerHTML += `<option value="${escCode}">${escName} (${escCode})</option>`;
+            masterSelect.innerHTML += `<option value="${escCode}">${escName} (${escCode})</option>`;
+        });
+
+        masterSelect.innerHTML += '<option value="custom">-- Enter custom code... --</option>';
+    }
+
+    async function remoteTriggerTVSync() {
+        const slaveSelect = document.getElementById('remote-sync-slave-select');
+        const masterSelect = document.getElementById('remote-sync-master-select');
+        if (!slaveSelect || !masterSelect) return;
+        
+        const slaveCode = slaveSelect.value;
+        let masterCode = masterSelect.value;
+
+        if (!slaveCode) {
+            alert('Please select a Slave TV.');
+            return;
+        }
+
+        if (masterSelect.value === 'custom') {
+            const customCode = prompt('Enter the 6-digit code of the Master TV:');
+            if (!customCode || customCode.trim().length !== 6 || isNaN(customCode)) {
+                alert('Please enter a valid 6-digit pairing code.');
+                return;
+            }
+            masterCode = customCode.trim();
+        }
+
+        if (!masterCode) {
+            alert('Please select or enter a Master TV code.');
+            return;
+        }
+
+        if (slaveCode === masterCode) {
+            alert('Cannot sync a TV to itself.');
+            return;
+        }
+
+        const masterObj = pairedDisplays.find(d => d.code === masterCode);
+        const masterSecret = masterObj ? (masterObj.hmacKey || '') : '';
+
+        const payload = {
+            from: 'remote',
+            action: 'syncToMaster',
+            data: {
+                masterCode: masterCode,
+                masterSecret: masterSecret
+            }
+        };
+
+        const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+        const slaveSecret = slaveObj ? (slaveObj.hmacKey || '') : '';
+        const signedPayload = await signMessage(payload, slaveSecret);
+
+        const slaveTopic = getMqttTopic(slaveCode);
+        if (remoteMqttClient && remoteMqttClient.connected) {
+            remoteMqttClient.publish(slaveTopic, signedPayload);
+            const slaveName = slaveObj ? slaveObj.name : slaveCode;
+            const masterName = masterObj ? masterObj.name : masterCode;
+            alert(`Command sent: telling Display "${slaveName}" to sync with Master Display "${masterName}".`);
+        } else {
+            alert('MQTT remote client not connected. Please reconnect first.');
+        }
+    }
+
+    async function remoteTriggerTVDisconnect() {
+        const slaveSelect = document.getElementById('remote-sync-slave-select');
+        if (!slaveSelect) return;
+        
+        const slaveCode = slaveSelect.value;
+        if (!slaveCode) {
+            alert('Please select a TV to disconnect.');
+            return;
+        }
+
+        const payload = {
+            from: 'remote',
+            action: 'disconnectMaster'
+        };
+
+        const slaveObj = pairedDisplays.find(d => d.code === slaveCode);
+        const slaveSecret = slaveObj ? (slaveObj.hmacKey || '') : '';
+        const signedPayload = await signMessage(payload, slaveSecret);
+
+        const slaveTopic = getMqttTopic(slaveCode);
+        if (remoteMqttClient && remoteMqttClient.connected) {
+            remoteMqttClient.publish(slaveTopic, signedPayload);
+            const slaveName = slaveObj ? slaveObj.name : slaveCode;
+            alert(`Command sent: telling Display "${slaveName}" to disconnect from master sync.`);
+        } else {
+            alert('MQTT remote client not connected. Please reconnect first.');
+        }
+    }
+
+    function renderPairedDisplaysSettings() {
+        const listEl = document.getElementById('remote-paired-displays-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        if (pairedDisplays.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">No displays paired yet.</div>';
+            return;
+        }
+
+        pairedDisplays.forEach(d => {
+            const item = document.createElement('div');
+            const isCurrent = d.code === remotePairCode;
+            item.className = 'remote-list-item ' + (isCurrent ? 'selected' : '');
+            
+            const escCode = escapeHtml(d.code);
+            const escName = escapeHtml(d.name);
+            
+            item.innerHTML = `
+                <div class="remote-item-info" data-action="switch" data-code="${escCode}" style="cursor: pointer; flex-grow: 1;">
+                    <div class="remote-item-title" style="font-weight: 700; color: ${isCurrent ? 'var(--accent)' : 'white'};">${escName} ${isCurrent ? '🟢' : ''}</div>
+                    <div class="remote-item-desc">Code: ${escCode} ${isCurrent ? '(Active)' : '(Tap to connect)'}</div>
+                </div>
+                <div class="remote-item-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-sm btn-secondary" data-action="rename" data-code="${escCode}" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">Rename</button>
+                    <button class="btn btn-sm btn-danger" data-action="remove" data-code="${escCode}" style="padding: 4px 8px; font-size: 0.75rem; min-width: auto;">✕</button>
+                </div>
+            `;
+
+            item.addEventListener('click', (e) => {
+                const target = e.target.closest('[data-action]');
+                if (!target) return;
+                const action = target.getAttribute('data-action');
+                const code = target.getAttribute('data-code');
+                if (action === 'switch') {
+                    switchRemotePairing(code);
+                } else if (action === 'rename') {
+                    renamePairing(code);
+                } else if (action === 'remove') {
+                    removePairing(code);
+                }
+            });
+
+            listEl.appendChild(item);
+        });
+    }
+
+    // Expose functions for inline HTML event handlers
+    window.switchRemoteTab = switchRemoteTab;
+    window.sendRemoteCommand = sendRemoteCommand;
+    window.handleRemoteAddStream = handleRemoteAddStream;
+    window.connectWithInputCode = connectWithInputCode;
+    window.handleRemoteDragStart = handleRemoteDragStart;
+    window.handleRemoteDragOver = handleRemoteDragOver;
+    window.handleRemoteDragLeave = handleRemoteDragLeave;
+    window.handleRemoteDrop = handleRemoteDrop;
+    window.handleRemoteSlotClick = handleRemoteSlotClick;
+    window.handleRemoteLibraryItemClick = handleRemoteLibraryItemClick;
+    window.renderRemoteVirtualGrid = renderRemoteVirtualGrid;
+    window.renderRemoteArrangeLibraryList = renderRemoteArrangeLibraryList;
+    window.promptRemoteSavePreset = promptRemoteSavePreset;
+    window.handleRemoteDeletePreset = handleRemoteDeletePreset;
+    window.renderRemoteMainVirtualGrid = renderRemoteMainVirtualGrid;
+    window.openRemoteLayoutSelector = openRemoteLayoutSelector;
+    window.closeRemoteLayoutSelector = closeRemoteLayoutSelector;
+    window.closeRemoteLayoutSelectorOnOverlay = closeRemoteLayoutSelectorOnOverlay;
+    window.renamePairing = renamePairing;
+    window.removePairing = removePairing;
+    window.addNewPairingFromSettings = addNewPairingFromSettings;
+    window.remoteTriggerTVSync = remoteTriggerTVSync;
+    window.remoteTriggerTVDisconnect = remoteTriggerTVDisconnect;
+    window.switchRemotePairing = switchRemotePairing;
+    window.openRemoteSwitcherPopup = openRemoteSwitcherPopup;
+    window.closeRemoteSwitcherPopup = closeRemoteSwitcherPopup;
+    window.closeRemoteSwitcherOnOverlay = closeRemoteSwitcherOnOverlay;
+    window.selectDisplayFromSwitcher = selectDisplayFromSwitcher;
+
+    // Auto-initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pairCode = urlParams.get('pair');
+            initMobileRemote(pairCode);
+        });
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const pairCode = urlParams.get('pair');
+        initMobileRemote(pairCode);
+    }
+
+})();
