@@ -3096,15 +3096,15 @@
             if (!container) return;
             
             container.innerHTML = `
-                <canvas id="canvas-weather-${stream.id}" class="weather-canvas"></canvas>
                 <div class="weather-cam-widget" id="weather-cam-widget-${stream.id}">
-                    <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding-top: 40px;">
-                        Initializing Local Weather Cam...
+                    <canvas id="canvas-weather-${stream.id}" class="weather-canvas"></canvas>
+                    <div class="wc-content-layer" id="wc-content-${stream.id}">
+                        <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding-top: 40px;">
+                            Initializing Local Weather Cam...
+                        </div>
                     </div>
                 </div>
             `;
-            
-            const canvas = document.getElementById(`canvas-weather-${stream.id}`);
             
             fetchWeatherForecast(appState.location)
                 .then(data => {
@@ -3126,7 +3126,7 @@
                     if (!widget) return;
                     widget.className = `weather-cam-widget ${theme}`;
 
-                    // 1. Hourly timeline pills (next 12 hours)
+                    // 1. Next 5 Hours Timeline (Larger cards)
                     let hourlyHtml = '';
                     if (data.hourly && data.hourly.time) {
                         const nowTime = Date.now();
@@ -3138,24 +3138,27 @@
                                 break;
                             }
                         }
-                        const endHourIdx = Math.min(data.hourly.time.length, startHourIdx + 12);
+                        const endHourIdx = Math.min(data.hourly.time.length, startHourIdx + 5);
                         for (let i = startHourIdx; i < endHourIdx; i++) {
                             const dateObj = new Date(data.hourly.time[i]);
                             const isNow = (i === startHourIdx);
                             const timeLabel = isNow ? 'Now' : dateObj.toLocaleTimeString([], { hour: 'numeric' });
                             const hEmoji = getWeatherEmoji(data.hourly.weather_code[i]);
                             const hTemp = Math.round(data.hourly.temperature_2m[i]);
+                            const hPop = data.hourly.precipitation_probability ? data.hourly.precipitation_probability[i] : 0;
+                            const popHtml = (hPop > 15) ? `<span class="wc-hc-pop">💧${hPop}%</span>` : '';
                             hourlyHtml += `
-                                <div class="wc-hourly-pill">
-                                    <span style="color: var(--text-muted);">${timeLabel}</span>
-                                    <span>${hEmoji}</span>
-                                    <span style="font-weight: 700;">${hTemp}°</span>
+                                <div class="wc-hourly-card">
+                                    <span class="wc-hc-time">${timeLabel}</span>
+                                    <span class="wc-hc-emoji">${hEmoji}</span>
+                                    <span class="wc-hc-temp">${hTemp}°</span>
+                                    ${popHtml}
                                 </div>
                             `;
                         }
                     }
                     
-                    // 2. 5-day daily forecast cards
+                    // 2. 5-Day Daily Forecast Cards (Matching 5-col layout)
                     let forecastHtml = '';
                     for (let i = 1; i <= 5; i++) {
                         const dateStr = data.daily.time[i];
@@ -3180,33 +3183,37 @@
                         `;
                     }
                     
-                    widget.innerHTML = `
-                        <div class="wc-header-card">
-                            <div class="wc-info-block">
-                                <div class="wc-location">${escapeHtml(displayLocation)}</div>
-                                <div class="wc-temp-row">
-                                    <span class="wc-current-temp">${temp}°F</span>
-                                    <span class="wc-desc-tag">${desc}</span>
+                    const contentEl = document.getElementById(`wc-content-${stream.id}`);
+                    if (contentEl) {
+                        contentEl.innerHTML = `
+                            <div class="wc-header-card">
+                                <div class="wc-info-block">
+                                    <div class="wc-location">${escapeHtml(displayLocation)}</div>
+                                    <div class="wc-temp-row">
+                                        <span class="wc-current-temp">${temp}°F</span>
+                                        <span class="wc-desc-tag">${desc}</span>
+                                    </div>
+                                    <div class="wc-sub-row">
+                                        <span>H: ${todayMax}° • L: ${todayMin}°</span>
+                                        <span>Feels ${feelsLike}°</span>
+                                    </div>
                                 </div>
-                                <div class="wc-sub-row">
-                                    <span>H: ${todayMax}° • L: ${todayMin}°</span>
-                                    <span>Feels ${feelsLike}°</span>
+                                <div class="wc-header-right">
+                                    <div class="wc-main-emoji">${weatherEmoji}</div>
+                                    <div class="wc-badges-col">
+                                        <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
+                                        <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="wc-header-right">
-                                <div class="wc-main-emoji">${weatherEmoji}</div>
-                                <div class="wc-badges-col">
-                                    <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
-                                    <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
-                                </div>
+                            ${hourlyHtml ? `<div class="wc-hourly-grid">${hourlyHtml}</div>` : ''}
+                            <div class="wc-forecast-grid">
+                                ${forecastHtml}
                             </div>
-                        </div>
-                        ${hourlyHtml ? `<div class="wc-hourly-row">${hourlyHtml}</div>` : ''}
-                        <div class="wc-forecast-grid">
-                            ${forecastHtml}
-                        </div>
-                    `;
+                        `;
+                    }
                     
+                    const canvas = document.getElementById(`canvas-weather-${stream.id}`);
                     if (canvas) {
                         if (activeWeatherAnimations[stream.id]) {
                             activeWeatherAnimations[stream.id].stop();
@@ -3246,17 +3253,14 @@
             }
             
             let particles = [];
-            let sunAngle = 0;
             let time = 0;
             
             const isRain = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code);
             const isSnow = [71, 73, 75, 77, 85, 86].includes(code);
-            const isCloudy = [1, 2, 3, 45, 48].includes(code) || isRain || isSnow;
-            const isSunny = !isRain && !isSnow && (code === 0 || code === 1 || code === 2);
             const isStorm = [95, 96, 99].includes(code);
             
             if (isRain) {
-                const count = isStorm ? 80 : 40;
+                const count = isStorm ? 70 : 35;
                 for (let i = 0; i < count; i++) {
                     particles.push({
                         x: Math.random() * 800,
@@ -3267,7 +3271,7 @@
                     });
                 }
             } else if (isSnow) {
-                const count = 40;
+                const count = 35;
                 for (let i = 0; i < count; i++) {
                     particles.push({
                         x: Math.random() * 800,
@@ -3282,90 +3286,28 @@
             
             function tick() {
                 time++;
+                // Keep canvas transparent so vibrant CSS weather background shows with full brilliance
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-                if (isDay) {
-                    if (isRain || isStorm) {
-                        grad.addColorStop(0, '#1f2937');
-                        grad.addColorStop(1, '#111827');
-                    } else if (isCloudy) {
-                        grad.addColorStop(0, '#374151');
-                        grad.addColorStop(1, '#1f2937');
-                    } else {
-                        grad.addColorStop(0, '#0f172a');
-                        grad.addColorStop(1, '#020617');
-                    }
-                } else {
-                    grad.addColorStop(0, '#020617');
-                    grad.addColorStop(1, '#000000');
-                }
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
                 if (isStorm && Math.random() < 0.007) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${0.15 + Math.random() * 0.2})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.18 + Math.random() * 0.25})`;
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
                 
                 if (!isDay && !isRain && !isSnow) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                    for (let i = 0; i < 20; i++) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                    for (let i = 0; i < 22; i++) {
                         const starX = (Math.sin(i * 123.45) * 0.5 + 0.5) * canvas.width;
-                        const starY = (Math.cos(i * 543.21) * 0.5 + 0.5) * (canvas.height * 0.7);
-                        const flicker = 0.5 + Math.sin(time * 0.05 + i) * 0.5;
-                        ctx.globalAlpha = flicker;
-                        ctx.fillRect(starX, starY, 1.5, 1.5);
+                        const starY = (Math.cos(i * 543.21) * 0.5 + 0.5) * (canvas.height * 0.75);
+                        const flicker = 0.35 + Math.sin(time * 0.05 + i) * 0.65;
+                        ctx.globalAlpha = Math.max(0.1, flicker);
+                        ctx.fillRect(starX, starY, 1.8, 1.8);
                     }
                     ctx.globalAlpha = 1.0;
                 }
                 
-                if (isSunny && isDay) {
-                    sunAngle += 0.005;
-                    const sunX = canvas.width - 60;
-                    const sunY = 60;
-                    
-                    const sunGlow = ctx.createRadialGradient(sunX, sunY, 15, sunX, sunY, 50);
-                    sunGlow.addColorStop(0, 'rgba(251, 146, 60, 0.6)');
-                    sunGlow.addColorStop(1, 'rgba(251, 146, 60, 0)');
-                    ctx.fillStyle = sunGlow;
-                    ctx.beginPath();
-                    ctx.arc(sunX, sunY, 50, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    ctx.fillStyle = '#fdba74';
-                    ctx.beginPath();
-                    ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    ctx.strokeStyle = '#fdba74';
-                    ctx.lineWidth = 2;
-                    for (let i = 0; i < 8; i++) {
-                        const angle = sunAngle + (i * Math.PI / 4);
-                        ctx.beginPath();
-                        ctx.moveTo(sunX + Math.cos(angle) * 26, sunY + Math.sin(angle) * 26);
-                        ctx.lineTo(sunX + Math.cos(angle) * 36, sunY + Math.sin(angle) * 36);
-                        ctx.stroke();
-                    }
-                }
-                
-                if (isSunny && !isDay) {
-                    const moonX = canvas.width - 60;
-                    const moonY = 60;
-                    
-                    ctx.fillStyle = '#e2e8f0';
-                    ctx.beginPath();
-                    ctx.arc(moonX, moonY, 18, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    ctx.fillStyle = '#020617';
-                    ctx.beginPath();
-                    ctx.arc(moonX - 6, moonY - 2, 16, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                
                 if (isRain) {
-                    ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+                    ctx.strokeStyle = 'rgba(186, 230, 253, 0.65)';
                     ctx.lineWidth = 1.5;
                     particles.forEach(p => {
                         ctx.beginPath();
@@ -3382,7 +3324,7 @@
                         }
                     });
                 } else if (isSnow) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
                     particles.forEach(p => {
                         ctx.beginPath();
                         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);

@@ -1359,37 +1359,39 @@
         /* Weather Atmospheric Dynamic Background Themes */
         .weather-hero-card.theme-sunny,
         .weather-cam-widget.theme-sunny {
-            background: linear-gradient(135deg, rgba(14, 116, 144, 0.75) 0%, rgba(3, 105, 161, 0.7) 40%, rgba(15, 23, 42, 0.85) 100%),
-                        radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.35) 0%, transparent 65%) !important;
+            background: radial-gradient(circle at 85% 15%, #fef08a 0%, #f59e0b 22%, rgba(245, 158, 11, 0.2) 45%, transparent 65%),
+                        linear-gradient(145deg, #0284c7 0%, #0369a1 40%, #075985 75%, #0c4a6e 100%) !important;
         }
 
         .weather-hero-card.theme-clear-night,
         .weather-cam-widget.theme-clear-night {
-            background: linear-gradient(135deg, rgba(2, 6, 23, 0.88) 0%, rgba(15, 23, 42, 0.82) 50%, rgba(30, 27, 75, 0.82) 100%),
-                        radial-gradient(circle at 85% 15%, rgba(248, 250, 252, 0.15) 0%, transparent 50%) !important;
+            background: radial-gradient(circle at 85% 18%, rgba(254, 240, 138, 0.4) 0%, rgba(254, 240, 138, 0.1) 25%, transparent 50%),
+                        linear-gradient(155deg, #030712 0%, #0b1329 45%, #1e1b4b 80%, #020617 100%) !important;
         }
 
         .weather-hero-card.theme-rain,
         .weather-cam-widget.theme-rain {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.88) 0%, rgba(15, 23, 42, 0.85) 60%, rgba(2, 6, 23, 0.9) 100%),
-                        radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 60%) !important;
+            background: radial-gradient(circle at 75% 18%, rgba(56, 189, 248, 0.35) 0%, transparent 55%),
+                        linear-gradient(155deg, #1e3a5f 0%, #172554 38%, #0f172a 75%, #020617 100%) !important;
         }
 
         .weather-hero-card.theme-storm,
         .weather-cam-widget.theme-storm {
-            background: linear-gradient(135deg, rgba(30, 27, 75, 0.92) 0%, rgba(49, 16, 66, 0.88) 50%, rgba(10, 10, 20, 0.95) 100%),
-                        radial-gradient(circle at 75% 25%, rgba(253, 224, 71, 0.15) 0%, transparent 50%) !important;
+            background: radial-gradient(circle at 80% 20%, rgba(216, 180, 254, 0.4) 0%, transparent 55%),
+                        linear-gradient(155deg, #4c1d95 0%, #31104b 35%, #1e1b4b 70%, #050510 100%) !important;
         }
 
         .weather-hero-card.theme-snow,
         .weather-cam-widget.theme-snow {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.88) 0%, rgba(12, 74, 110, 0.78) 50%, rgba(15, 23, 42, 0.88) 100%),
-                        radial-gradient(circle at 80% 20%, rgba(248, 250, 252, 0.25) 0%, transparent 60%) !important;
+            background: radial-gradient(circle at 85% 15%, rgba(240, 249, 255, 0.5) 0%, transparent 55%),
+                        linear-gradient(155deg, #0284c7 0%, #0e7490 35%, #164e63 70%, #082f49 100%) !important;
         }
 
         .weather-hero-card.theme-cloudy,
         .weather-cam-widget.theme-cloudy {
-            background: linear-gradient(135deg, rgba(51, 65, 85, 0.88) 0%, rgba(30, 41, 59, 0.82) 50%, rgba(15, 23, 42, 0.88) 100%) !important;
+            background: radial-gradient(ellipse at 82% 18%, rgba(226, 232, 240, 0.4) 0%, transparent 55%),
+                        radial-gradient(ellipse at 22% 55%, rgba(148, 163, 184, 0.3) 0%, transparent 55%),
+                        linear-gradient(150deg, #475569 0%, #334155 35%, #1e293b 70%, #0f172a 100%) !important;
         }
 
         .weather-hero-header {
@@ -1774,22 +1776,40 @@
             left: 0;
             right: 0;
             bottom: 0;
-            padding: 34px 12px 10px 12px;
+            padding: 34px 14px 12px 14px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             color: var(--text-main);
             z-index: 2;
             font-family: var(--font-family);
-            background: rgba(3, 7, 18, 0.7);
-            backdrop-filter: blur(12px) saturate(140%);
-            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            background: #0f172a;
             overflow: hidden;
-            gap: 6px;
             box-sizing: border-box;
+            transition: background 0.5s ease;
         }
 
-        .weather-cam-widget div {
+        .weather-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .wc-content-layer {
+            position: relative;
+            z-index: 2;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .wc-content-layer div {
             height: auto !important;
         }
 
@@ -1889,168 +1909,92 @@
             color: var(--text-main);
         }
 
-        .wc-hourly-row {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            flex-shrink: 0;
-        }
-
-        .wc-hourly-row::-webkit-scrollbar {
-            height: 4px;
-        }
-
-        .wc-hourly-row::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 4px;
-        }
-
-        .wc-hourly-pill {
-            flex: 0 0 52px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            padding: 5px 3px;
-            background: rgba(17, 24, 39, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            font-size: 0.68rem;
-            text-align: center;
-        }
-
-        .wc-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
-            width: 100%;
-        }
-
-        .wc-location {
-            font-size: 1.1rem;
-            font-weight: 800;
-            letter-spacing: -0.2px;
-            color: var(--text-main);
-        }
-
-        .wc-current-temp {
-            font-size: 2.2rem;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--text-main);
-        }
-
-        .wc-current-center {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            background: rgba(17, 24, 39, 0.55);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 10px 16px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            align-self: center;
-            width: fit-content;
-            margin: 10px 0;
-        }
-
-        .wc-cc-icon {
-            font-size: 1.6rem;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-        }
-
-        .wc-cc-desc {
-            font-size: 0.85rem;
-            color: var(--accent);
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
+        .wc-hourly-grid,
         .wc-forecast-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 6px;
+            gap: 8px;
             width: 100%;
             align-items: stretch;
             flex-shrink: 0;
         }
 
+        .wc-hourly-card,
         .wc-forecast-day {
-            background: rgba(17, 24, 39, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 8px;
-            padding: 5px 3px;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 8px 4px;
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 2px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-            transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+            justify-content: space-between;
+            min-height: 72px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            transition: all 0.2s ease;
+            box-sizing: border-box;
         }
 
+        .wc-hourly-card:hover,
         .wc-forecast-day:hover {
-            border-color: rgba(6, 182, 212, 0.25);
-            transform: scale(1.05);
-            background: rgba(31, 41, 55, 0.7);
+            transform: translateY(-2px);
+            background: rgba(15, 23, 42, 0.72);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         }
 
+        .wc-hc-time,
         .wc-fd-name {
-            font-size: 0.65rem;
+            font-size: 0.78rem;
             font-weight: 700;
+            color: rgba(255, 255, 255, 0.75);
             text-transform: uppercase;
-            color: var(--text-muted);
-            letter-spacing: 0.2px;
+            letter-spacing: 0.4px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
         }
 
+        .wc-hc-emoji,
         .wc-fd-emoji {
-            font-size: 1.2rem;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+            font-size: 1.65rem;
+            line-height: 1;
+            margin: 2px 0;
+            filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
         }
 
-        .wc-fd-desc {
-            font-size: 0.55rem;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
+        .wc-hc-temp {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+        }
+
+        .wc-hc-pop {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.18);
+            padding: 1px 5px;
+            border-radius: 999px;
         }
 
         .wc-fd-temps {
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.85rem;
+            font-weight: 800;
             display: flex;
             justify-content: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .wc-fd-max {
-            color: var(--text-main);
+            color: #ffffff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
         }
 
         .wc-fd-min {
-            color: var(--text-muted);
-        }
-        
-        .weather-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
+            color: rgba(255, 255, 255, 0.6);
         }
 
         /* Notepad log widget styling */
