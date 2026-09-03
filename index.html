@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.4.0">
+    <link rel="stylesheet" href="style.css?v=1.4.1">
 </head>
 <body>
 
@@ -150,9 +150,6 @@
             <div class="weather-forecast-container">
                 <!-- Top Hero: Froggy Mascot + Current Weather -->
                 <div class="weather-hero-card">
-                    <div class="weather-frog-wrap" id="wf-frog-wrap">
-                        <!-- Froggy SVG injected dynamically -->
-                    </div>
                     <div class="weather-hero-info">
                         <div class="weather-hero-header">
                             <div>
@@ -167,10 +164,14 @@
                         <div class="weather-hero-temp-row">
                             <div class="weather-hero-temp" id="wf-temp">--°F</div>
                             <div class="weather-hero-meta">
-                                <div>High / Low: <span id="wf-highlow" style="color: var(--text-main); font-weight: 700;">--</span></div>
                                 <div>Feels Like: <span id="wf-feelslike" style="color: var(--text-main); font-weight: 700;">--</span></div>
+                                <div>High / Low: <span id="wf-highlow" style="color: var(--text-main); font-weight: 700;">--</span></div>
                             </div>
                         </div>
+                    </div>
+                    <!-- Small Weather Frog Mascot off to the side -->
+                    <div class="weather-frog-badge" id="wf-frog-wrap" title="Weather Mascot">
+                        <!-- Froggy SVG injected dynamically -->
                     </div>
                 </div>
 
@@ -581,6 +582,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js" integrity="sha384-ZFaJg22VvVm4+3ZqY9eRIHGmqdEQb+c7XO+0IKspqdtPGFu6xRiPnK8xeNA//kQJ" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" integrity="sha384-Dr98ddmUw2QkdCarNQ+OL7xLty7cSxgR0T7v1tq4UErS/qLV0132sBYTolRAFuOV" crossorigin="anonymous"></script>
     
-    <script src="app.js?v=2.1.0"></script>
+    <script src="app.js?v=2.1.1"></script>
 </body>
 </html>

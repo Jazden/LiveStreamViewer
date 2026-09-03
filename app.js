@@ -788,7 +788,7 @@
             if (!forceRefresh && weatherForecastCache && weatherForecastLocation === cityName && isFresh) {
                 return Promise.resolve(weatherForecastCache);
             }
-            if (!forceRefresh && weatherForecastPromise && weatherForecastLocation === cityName && isFresh) {
+            if (!forceRefresh && weatherForecastPromise && weatherForecastLocation === cityName) {
                 return weatherForecastPromise;
             }
             
@@ -3160,20 +3160,21 @@
                     }
                     
                     widget.innerHTML = `
-                        <div class="wc-frog-banner">
-                            ${frogSvg}
-                        </div>
-                        <div class="wc-header">
-                            <div>
+                        <div class="wc-header-card">
+                            <div class="wc-info-block">
                                 <div class="wc-location">${escapeHtml(displayLocation)}</div>
-                                <div style="font-size: 0.8rem; color: var(--accent); font-weight: 600;">${desc}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div class="wc-current-temp">${temp}°F</div>
-                                <div class="wc-badges-row" style="justify-content: flex-end; margin-top: 4px;">
+                                <div class="wc-temp-row">
+                                    <span class="wc-current-temp">${temp}°F</span>
+                                    <span class="wc-desc-tag">${desc}</span>
+                                </div>
+                                <div class="wc-badges-row">
                                     <span class="wc-mini-badge" style="border-color: ${uvInfo.color}; color: ${uvInfo.color};">UV ${uvInfo.val}</span>
                                     <span class="wc-mini-badge" style="border-color: ${aqiInfo.color}; color: ${aqiInfo.color};">AQI ${aqiInfo.val}</span>
                                 </div>
+                            </div>
+                            <!-- Small Frog Mascot off to the side -->
+                            <div class="wc-frog-mini" title="Weather Mascot">
+                                ${frogSvg}
                             </div>
                         </div>
                         ${hourlyHtml ? `<div class="wc-hourly-row">${hourlyHtml}</div>` : ''}
