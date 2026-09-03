@@ -4157,7 +4157,7 @@
             if (!confirm("Are you sure you want to clear the scheduled safety messages? The widget will revert to standard safety advisories.")) {
                 return;
             }
-            localStorage.removeItem(SAFETY_STORAGE_KEY);
+            removeStoredItem(SAFETY_STORAGE_KEY);
             refreshSafetyWidgets();
             populateSafetySettings();
         }
