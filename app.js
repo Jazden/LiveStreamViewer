@@ -1224,8 +1224,11 @@
             
             const isIframe = stream.type === 'iframe';
             const isNotes = stream.type === 'notes';
+            if (isIframe) card.classList.add('stream-iframe-card');
             
             let controlsHtml = '';
+            let headerActionsHtml = '';
+
             if (isNotes) {
                 controlsHtml = `
                     <div class="stream-controls">
@@ -1238,17 +1241,16 @@
                     </div>
                 `;
             } else if (isIframe) {
-                controlsHtml = `
-                    <div class="stream-controls">
-                        <span class="control-note">External Embed (Custom controls unavailable)</span>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="control-btn popout-btn" data-action="popout" title="Pop-out Stream (New Window)">
-                                ${POPOUT_SVG}
-                            </button>
-                            <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
-                                ${FULLSCREEN_SVG}
-                            </button>
-                        </div>
+                // Iframe reports/dashboards: No bottom control bar or "External Embed" note to keep filters and controls unobstructed
+                controlsHtml = '';
+                headerActionsHtml = `
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="control-btn popout-btn" data-action="popout" title="Pop-out Stream (New Window)">
+                            ${POPOUT_SVG}
+                        </button>
+                        <button class="control-btn fullscreen-btn" data-action="fullscreen" title="Fullscreen">
+                            ${FULLSCREEN_SVG}
+                        </button>
                     </div>
                 `;
             } else {
@@ -1309,8 +1311,11 @@
                     ${volumeTabHtml}
                 </div>
                 <div class="stream-header">
-                    <span class="stream-name">${escapedStreamName}</span>
-                    <span class="stream-type-badge">${escapedStreamType}</span>
+                    <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; max-width: calc(100% - 80px);">
+                        <span class="stream-name">${escapedStreamName}</span>
+                        <span class="stream-type-badge">${escapedStreamType}</span>
+                    </div>
+                    ${headerActionsHtml}
                 </div>
                 <div class="stream-player-container" id="player-container-${stream.id}">
                     <!-- Embedded Stream Content -->
