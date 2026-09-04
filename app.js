@@ -506,7 +506,10 @@
         // Header location updates
         function updateHeaderLocation() {
             const locEl = document.getElementById('header-location');
-            if (locEl) locEl.innerText = appState.location;
+            if (locEl) {
+                locEl.innerText = appState.location;
+                locEl.title = 'Click to view full weather forecast';
+            }
             document.getElementById('location-input').value = appState.location;
             document.getElementById('timezone-select').value = appState.timezone;
         }
@@ -1082,6 +1085,7 @@
         function updateWeatherBadge(location) {
             const badge = document.getElementById('weather-badge');
             badge.innerText = 'Loading Weather...';
+            badge.title = 'Click to view full weather forecast';
             
             fetchWeatherForecast(location)
                 .then(data => {
@@ -1089,7 +1093,7 @@
                     const code = data.current.weather_code;
                     const desc = getWeatherDescription(code);
                     badge.innerText = `${desc} +${temp}°F`;
-                    badge.title = `Fetched from Open-Meteo for coordinates: ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)}`;
+                    badge.title = `Click to view full weather forecast (${desc} +${temp}°F • ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)})`;
                 })
                 .catch(err => {
                     console.warn('Open-Meteo failed, falling back to wttr.in:', err);
@@ -1105,10 +1109,12 @@
                             } else {
                                 badge.innerText = text.trim();
                             }
+                            badge.title = 'Click to view full weather forecast';
                         })
                         .catch(fallbackErr => {
                             console.error('Weather fallback error:', fallbackErr);
                             badge.innerText = 'Weather Unavailable';
+                            badge.title = 'Click to view full weather forecast';
                         });
                 });
         }
@@ -4718,15 +4724,39 @@
         let currentBrowserCategory = 'all';
 
         function showMainStreamsPanel() {
-            document.getElementById('panel-streams').classList.remove('hidden');
-            document.getElementById('panel-weather').classList.add('hidden');
-            document.getElementById('btn-weather-view').classList.remove('active');
+            const streamsPanel = document.getElementById('panel-streams');
+            const weatherPanel = document.getElementById('panel-weather');
+            const weatherBtn = document.getElementById('btn-weather-view');
             
             const browserPanel = document.getElementById('panel-browser');
             const browserBtn = document.getElementById('btn-browser-view');
+
+            if (streamsPanel) streamsPanel.classList.remove('hidden');
+            if (weatherPanel) weatherPanel.classList.add('hidden');
+            if (weatherBtn) weatherBtn.classList.remove('active');
             if (browserPanel) browserPanel.classList.add('hidden');
             if (browserBtn) browserBtn.classList.remove('active');
+
+            renderActiveStreams();
         }
+
+        function openWeatherView() {
+            const weatherPanel = document.getElementById('panel-weather');
+            if (weatherPanel && weatherPanel.classList.contains('hidden')) {
+                toggleWeatherView();
+            } else if (weatherPanel) {
+                const container = weatherPanel.querySelector('.weather-forecast-container');
+                if (container) {
+                    container.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }
+        }
+
+        window.showMainStreamsPanel = showMainStreamsPanel;
+        window.closeViewPanels = showMainStreamsPanel;
+        window.returnToStreams = showMainStreamsPanel;
+        window.openWeatherView = openWeatherView;
+        window.toggleWeatherView = toggleWeatherView;
 
         function toggleBrowserView() {
             const streamsPanel = document.getElementById('panel-streams');
@@ -6061,11 +6091,26 @@
                     closePairingModal();
                     return;
                 }
+                const editModal = document.getElementById('edit-stream-modal');
+                if (editModal && editModal.classList.contains('open')) {
+                    closeEditStreamModal();
+                    return;
+                }
                 const moreMenu = document.getElementById('more-controls-dropdown-menu');
                 if (moreMenu && moreMenu.classList.contains('show')) {
                     const btn = document.getElementById('btn-more-toggle');
                     moreMenu.classList.remove('show');
                     if (btn) btn.classList.remove('active');
+                    return;
+                }
+                const browserPanel = document.getElementById('panel-browser');
+                if (browserPanel && !browserPanel.classList.contains('hidden')) {
+                    showMainStreamsPanel();
+                    return;
+                }
+                const weatherPanel = document.getElementById('panel-weather');
+                if (weatherPanel && !weatherPanel.classList.contains('hidden')) {
+                    showMainStreamsPanel();
                     return;
                 }
                 return;

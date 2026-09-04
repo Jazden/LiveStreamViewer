@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2.6.0">
+    <link rel="stylesheet" href="style.css?v=2.6.2">
 </head>
 <body>
 
@@ -23,9 +23,9 @@
 
         <!-- Weather & Time Dashboard -->
         <div class="info-dashboard">
-            <div class="info-item" id="header-location">Detecting Location...</div>
+            <div class="info-item clickable-weather-item" id="header-location" onclick="openWeatherView()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openWeatherView();}" role="button" tabindex="0" title="Click to view full weather forecast">Detecting Location...</div>
             <div class="info-divider"></div>
-            <div class="info-item highlight" id="weather-badge">Loading Weather...</div>
+            <div class="info-item highlight clickable-weather-item" id="weather-badge" onclick="openWeatherView()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openWeatherView();}" role="button" tabindex="0" title="Click to view full weather forecast">Loading Weather...</div>
             <div class="info-divider"></div>
             <div class="info-item" id="clock">--:--:--</div>
         </div>
@@ -147,7 +147,25 @@
 
         <!-- Full Weather Forecast Panel -->
         <div id="panel-weather" class="view-panel hidden">
+            <!-- Floating Return to Streams Button -->
+            <button class="panel-floating-close-btn" onclick="showMainStreamsPanel()" title="Return to Streams (Esc)" aria-label="Return to streams">
+                <span class="panel-close-text">Return to Streams</span>
+                <span class="panel-close-icon">&times;</span>
+            </button>
+
             <div class="weather-forecast-container">
+                <!-- Top Header Bar with Close Button -->
+                <div class="view-panel-header-bar">
+                    <div class="view-panel-header-title-group">
+                        <h2 class="view-panel-title">Weather Forecast</h2>
+                        <span class="view-panel-subtitle">Comprehensive real-time atmospheric, UV, AQI, pollen, and 7-day outlook</span>
+                    </div>
+                    <button class="panel-close-btn" onclick="showMainStreamsPanel()" title="Return to Streams (Esc)" aria-label="Return to streams">
+                        <span class="panel-close-text">Return to Streams</span>
+                        <span class="panel-close-icon">&times;</span>
+                    </button>
+                </div>
+
                 <!-- Top Hero: Current Weather with Atmospheric Theme -->
                 <div class="weather-hero-card" id="wf-hero-card">
                     <div class="weather-hero-info">
@@ -258,10 +276,24 @@
 
         <!-- Public Stream Browser Panel -->
         <div id="panel-browser" class="view-panel hidden">
+            <!-- Floating Return to Streams Button -->
+            <button class="panel-floating-close-btn" onclick="showMainStreamsPanel()" title="Return to Streams (Esc)" aria-label="Return to streams">
+                <span class="panel-close-text">Return to Streams</span>
+                <span class="panel-close-icon">&times;</span>
+            </button>
+
             <div class="browser-container">
                 <div class="browser-header">
-                    <h2>Public Stream Directory</h2>
-                    <p class="about-text">Explore and add high-quality, family-friendly public webcams, scenic channels, and global news broadcasts directly to your dashboard console.</p>
+                    <div class="view-panel-header-bar">
+                        <div class="view-panel-header-title-group">
+                            <h2 class="view-panel-title">Public Stream Directory</h2>
+                            <p class="about-text" style="margin: 0;">Explore and add high-quality, family-friendly public webcams, scenic channels, and global news broadcasts directly to your dashboard console.</p>
+                        </div>
+                        <button class="panel-close-btn" onclick="showMainStreamsPanel()" title="Return to Streams (Esc)" aria-label="Return to streams">
+                            <span class="panel-close-text">Return to Streams</span>
+                            <span class="panel-close-icon">&times;</span>
+                        </button>
+                    </div>
                     
                     <div class="browser-filter-row">
                         <div class="browser-search-wrap">
@@ -700,7 +732,7 @@
     <!-- Video.js HLS Javascript Library -->
     <script src="https://vjs.zencdn.net/8.10.0/video.js" integrity="sha384-SP4kHUZoQ2oygHagiNEmaLGBfCNAu1Q0idIJrYs7Cpzj6m4PZeECCXlU1S+ZEs+z" crossorigin="anonymous"></script>
     <!-- Default Streams Data -->
-    <script src="streams.js?v=2.6.1"></script>
+    <script src="streams.js?v=2.6.2"></script>
 
     <!-- MQTT & QR Code libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js" integrity="sha384-ZFaJg22VvVm4+3ZqY9eRIHGmqdEQb+c7XO+0IKspqdtPGFu6xRiPnK8xeNA//kQJ" crossorigin="anonymous"></script>
@@ -709,6 +741,6 @@
     <!-- SheetJS Excel Spreadsheet Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <script src="app.js?v=2.6.1"></script>
+    <script src="app.js?v=2.6.2"></script>
 </body>
 </html>
