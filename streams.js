@@ -45,38 +45,6 @@ const PUBLIC_STREAM_CATALOG = [
         desc: "24/7 national and global breaking news broadcasts and deep-dive reports.", 
         emoji: "🌐" 
     },
-    { 
-        name: "DW News Live", 
-        url: "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/master.m3u8", 
-        type: "hls", 
-        category: "News", 
-        desc: "Deutsche Welle international broadcast channel offering reports and world perspectives.", 
-        emoji: "🇩🇪" 
-    },
-    { 
-        name: "Al Jazeera English", 
-        url: "https://live-hls-web-aja2-gcp.thehlive.com/AJA2/index.m3u8", 
-        type: "hls", 
-        category: "News", 
-        desc: "Al Jazeera English international live broadcast news channel.", 
-        emoji: "📡" 
-    },
-    { 
-        name: "France 24 English", 
-        url: "https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_2300.m3u8", 
-        type: "hls", 
-        category: "News", 
-        desc: "France 24 English live stream, international breaking news and reporting.", 
-        emoji: "🇫🇷" 
-    },
-    { 
-        name: "NHK World Japan", 
-        url: "https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8", 
-        type: "hls", 
-        category: "News", 
-        desc: "NHK World-Japan English language live channel covering Japanese news and culture.", 
-        emoji: "🇯🇵" 
-    },
 
     // --- CAMERAS ---
     { 
@@ -198,30 +166,6 @@ const PUBLIC_STREAM_CATALOG = [
         category: "Cameras", 
         desc: "Waterway and coastline camera overlooking Rollover Pass on Bolivar.", 
         emoji: "🌊" 
-    },
-    { 
-        name: "Tokyo Shibuya Crossing", 
-        url: "https://www.youtube.com/watch?v=H-30B0cqh88", 
-        type: "youtube", 
-        category: "Cameras", 
-        desc: "Real-time webcam viewing the world-famous Shibuya pedestrian crossing in Tokyo, Japan.", 
-        emoji: "🏙️" 
-    },
-    { 
-        name: "PhillyCAM Live", 
-        url: "https://livestream.telvue.com/phillycam1/f7b44cfafd5c52223d5498196c8a2e7b.sdp/playlist.m3u8", 
-        type: "hls", 
-        category: "Cameras", 
-        desc: "Philadelphia community access television stream covering city events and stories.", 
-        emoji: "🔔" 
-    },
-    { 
-        name: "Escambia Florida Beach Cam", 
-        url: "https://cpcdn.azureedge.net/ESCAMBIACOFLLIVE1/ESCAMBIACOFLLIVE1/playlist.m3u8", 
-        type: "hls", 
-        category: "Cameras", 
-        desc: "Scenic webcam overlooking Pensacola Beach in Escambia County, Florida.", 
-        emoji: "⛱️" 
     },
 
     // --- WIDGETS & TOOLS ---
