@@ -197,8 +197,8 @@
             }
             setStoredItem('stream_layout', appState.layout);
             
-            // Save user-configured streams (isDefault === false)
-            const userStreams = appState.streams.filter(s => !s.isDefault).map(s => ({
+            // Save user library streams
+            const userStreams = appState.streams.map(s => ({
                 id: s.id,
                 name: s.name,
                 url: s.url,
@@ -280,30 +280,22 @@
                 }
             }
             
-            // Build streams list
-            let streams = defaultChannels.map((c, idx) => ({
-                id: 'default-' + idx,
-                name: c.name,
-                url: c.url,
-                type: c.type || 'hls',
-                category: c.category || 'General',
-                active: c.active !== undefined ? c.active : false,
-                hiddenFromPicker: false,
-                isDefault: true
-            }));
-            
-            userStreams.forEach(us => {
-                streams.push({
-                    id: us.id,
-                    name: us.name,
-                    url: us.url,
-                    type: us.type,
-                    category: us.category || 'General',
-                    active: us.active !== undefined ? us.active : false,
-                    hiddenFromPicker: !!(us.hiddenFromPicker || us.hidden),
-                    isDefault: false
+            // Build streams list from user streams (empty by default if none configured)
+            let streams = [];
+            if (Array.isArray(userStreams)) {
+                userStreams.forEach(us => {
+                    streams.push({
+                        id: us.id || ('stream-' + Date.now() + '-' + Math.floor(Math.random() * 1000)),
+                        name: us.name || 'Untitled Stream',
+                        url: us.url || '',
+                        type: us.type || 'hls',
+                        category: us.category || 'General',
+                        active: us.active !== undefined ? us.active : false,
+                        hiddenFromPicker: !!(us.hiddenFromPicker || us.hidden),
+                        isDefault: false
+                    });
                 });
-            });
+            }
             
             // Load active/visible IDs
             const savedActiveIds = getStoredItem('active_stream_ids');
@@ -1761,11 +1753,23 @@
             });
             
             if (count === 0) {
-                listContainer.innerHTML = `
-                    <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">
-                        No streams found
-                    </div>
-                `;
+                if (appState.streams.length === 0) {
+                    listContainer.innerHTML = `
+                        <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 25px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                            <span style="font-size: 2rem;">📺</span>
+                            <div style="font-weight: 600; color: white;">Library is Empty</div>
+                            <div style="font-size: 0.75rem; line-height: 1.3;">Browse public feeds or add your custom stream to get started.</div>
+                            <button class="btn btn-primary btn-sm" onclick="toggleBrowserView()" style="margin-top: 8px; width: 100%; justify-content: center;">Browse Streams</button>
+                            <button class="btn btn-secondary btn-sm" onclick="openSettingsToTab('tab-streams')" style="width: 100%; justify-content: center;">Add Stream</button>
+                        </div>
+                    `;
+                } else {
+                    listContainer.innerHTML = `
+                        <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">
+                            No streams found
+                        </div>
+                    `;
+                }
             } else {
                 listContainer.appendChild(fragment);
             }
@@ -1781,12 +1785,31 @@
             if (activeStreams.length === 0) {
                 clearAllPlayers();
                 container.className = '';
-                container.innerHTML = `
-                    <div class="no-streams">
-                        <p>No active streams selected. Open configuration to set up and enable feeds.</p>
-                        <button class="btn btn-primary" onclick="openSettings()">Configure Streams</button>
-                    </div>
-                `;
+                if (appState.streams.length === 0) {
+                    container.innerHTML = `
+                        <div class="no-streams">
+                            <div style="font-size: 3rem; margin-bottom: 10px;">📺</div>
+                            <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; color: white;">Your Stream Library is Empty</h3>
+                            <p style="max-width: 440px; margin: 0 auto 16px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.4;">
+                                Browse our curated public directory of news and webcams, or add your own custom video feeds to get started.
+                            </p>
+                            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="toggleBrowserView()">Browse Stream Directory</button>
+                                <button class="btn btn-secondary" onclick="openSettingsToTab('tab-streams')">Add Custom Stream</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="no-streams">
+                            <p>No active streams selected. Open configuration to set up and enable feeds.</p>
+                            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 12px;">
+                                <button class="btn btn-primary" onclick="openSettings()">Configure Streams</button>
+                                <button class="btn btn-secondary" onclick="toggleBrowserView()">Browse More Streams</button>
+                            </div>
+                        </div>
+                    `;
+                }
                 return;
             }
             
@@ -2971,31 +2994,37 @@
                 actionCell.appendChild(upBtn);
                 actionCell.appendChild(downBtn);
                 
-                if (!s.isDefault) {
-                    const editBtn = document.createElement('button');
-                    editBtn.className = 'btn btn-sm btn-icon';
-                    editBtn.title = 'Edit Custom Stream';
-                    editBtn.innerText = 'Edit';
-                    editBtn.onclick = () => openEditStreamModal(s.id);
-                    actionCell.appendChild(editBtn);
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-icon';
+                editBtn.title = 'Edit Stream';
+                editBtn.innerText = 'Edit';
+                editBtn.onclick = () => openEditStreamModal(s.id);
+                actionCell.appendChild(editBtn);
 
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'btn btn-danger btn-sm btn-icon';
-                    deleteBtn.innerText = 'Del';
-                    deleteBtn.onclick = () => deleteStream(s.id);
-                    actionCell.appendChild(deleteBtn);
-                } else {
-                    const label = document.createElement('span');
-                    label.innerText = ' Sys';
-                    label.style.color = 'var(--text-muted)';
-                    label.style.fontSize = '0.7rem';
-                    label.style.lineHeight = '2.2';
-                    actionCell.appendChild(label);
-                }
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-danger btn-sm btn-icon';
+                deleteBtn.innerText = 'Del';
+                deleteBtn.title = 'Delete Stream';
+                deleteBtn.onclick = () => deleteStream(s.id);
+                actionCell.appendChild(deleteBtn);
                 
                 tr.appendChild(actionCell);
                 fragment.appendChild(tr);
             });
+
+            if (appState.streams.length === 0) {
+                const emptyTr = document.createElement('tr');
+                emptyTr.innerHTML = `
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 35px 15px;">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">📺</div>
+                        <div style="font-weight: 600; color: white; margin-bottom: 4px;">No streams in your library yet</div>
+                        <div style="font-size: 0.8rem; margin-bottom: 14px;">Add a custom stream feed above or browse the curated public stream directory.</div>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="closeSettings(); toggleBrowserView();">Browse Stream Directory</button>
+                    </td>
+                `;
+                fragment.appendChild(emptyTr);
+            }
+
             tbody.appendChild(fragment);
 
             // Populate rotator settings in modal
@@ -4452,20 +4481,13 @@
 
         // --- Public Stream Directory Browser ---
 
-        const PUBLIC_STREAM_DIRECTORY = [
-            { name: "NASA TV Live", url: "https://www.youtube.com/watch?v=21X5lGlDOfg", type: "youtube", category: "Nature & Space", desc: "Official live stream of NASA television, featuring space exploration updates, ISS coverage, and launches.", emoji: "🪐" },
-            { name: "Tokyo Shibuya Crossing", url: "https://www.youtube.com/watch?v=H-30B0cqh88", type: "youtube", category: "Cities", desc: "Real-time webcam viewing the world-famous Shibuya crossing in Tokyo, Japan.", emoji: "🏙️" },
-            { name: "ABC News Live", url: "https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master_4000.m3u8", type: "hls", category: "News", desc: "24/7 breaking news broadcasts, reports, and detailed interviews from ABC News.", emoji: "📺" },
-            { name: "DW News Live", url: "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/master.m3u8", type: "hls", category: "News", desc: "Deutsche Welle international broadcast channel offering reports and global viewpoints.", emoji: "📰" },
-            { name: "Al Jazeera English", url: "https://live-hls-web-aja2-gcp.thehlive.com/AJA2/index.m3u8", type: "hls", category: "News", desc: "Al Jazeera English international live broadcast news channel.", emoji: "📡" },
-            { name: "France 24 English", url: "https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_2300.m3u8", type: "hls", category: "News", desc: "France 24 English live stream, international breaking news and reports.", emoji: "🇫🇷" },
-            { name: "NHK World Japan", url: "https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8", type: "hls", category: "News", desc: "NHK World-Japan English language live channel covering Japanese news, culture, and lifestyle.", emoji: "🇯🇵" },
-            { name: "Galveston Harbor Cam", url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "High-definition streaming cam overlooking the harbor view of Galveston, Texas.", emoji: "🚢" },
-            { name: "Galveston Seawall Cam", url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "Scenic webcam overlooking the famous boardwalk, seawall and beach of Galveston, Texas.", emoji: "🌴" },
-            { name: "Galveston Skycam North", url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt31821.rc0.edge.basic.stream/playlist.m3u8", type: "hls", category: "Cities", desc: "A panoramic high-altitude view of the northern side of Galveston city.", emoji: "🧭" },
-            { name: "PhillyCAM Live", url: "https://livestream.telvue.com/phillycam1/f7b44cfafd5c52223d5498196c8a2e7b.sdp/playlist.m3u8", type: "hls", category: "Cities", desc: "Philadelphia community access television stream covering city events and stories.", emoji: "🔔" },
-            { name: "Escambia Florida Beach Cam", url: "https://cpcdn.azureedge.net/ESCAMBIACOFLLIVE1/ESCAMBIACOFLLIVE1/playlist.m3u8", type: "hls", category: "Cities", desc: "Scenic webcam overlooking Pensacola Beach in Escambia County, Florida.", emoji: "⛱️" }
-        ];
+        const PUBLIC_STREAM_DIRECTORY = (typeof PUBLIC_STREAM_CATALOG !== 'undefined' && Array.isArray(PUBLIC_STREAM_CATALOG)) 
+            ? PUBLIC_STREAM_CATALOG 
+            : [
+                { name: "NASA TV Live", url: "https://www.youtube.com/watch?v=21X5lGlDOfg", type: "youtube", category: "Nature & Space", desc: "Official live stream of NASA television, featuring space exploration updates, ISS coverage, and launches.", emoji: "🪐" },
+                { name: "Tokyo Shibuya Crossing", url: "https://www.youtube.com/watch?v=H-30B0cqh88", type: "youtube", category: "Cameras", desc: "Real-time webcam viewing the world-famous Shibuya crossing in Tokyo, Japan.", emoji: "🏙️" },
+                { name: "ABC News Live", url: "https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master_4000.m3u8", type: "hls", category: "News", desc: "24/7 breaking news broadcasts, reports, and detailed interviews from ABC News.", emoji: "📺" }
+            ];
 
         let verifiedDirectoryStreams = {}; // Cache map: url -> 'online' | 'offline'
         let isDirectoryVerifying = false;
@@ -4474,6 +4496,12 @@
         async function checkDirectoryStreamUsability(item) {
             if (verifiedDirectoryStreams[item.url]) {
                 return verifiedDirectoryStreams[item.url];
+            }
+
+            // Local widgets and interactive reports are always available
+            if (item.type === 'weather' || item.type === 'notes' || item.type === 'safety' || item.type === 'iframe') {
+                verifiedDirectoryStreams[item.url] = 'online';
+                return 'online';
             }
 
             try {
@@ -4738,11 +4766,15 @@
         }
 
         function getCategoryGradient(category) {
-            switch(category.toLowerCase()) {
+            switch((category || '').toLowerCase()) {
                 case 'news':
                     return 'linear-gradient(135deg, #1e3a8a 0%, #581c87 100%)';
+                case 'cameras':
                 case 'cities':
                     return 'linear-gradient(135deg, #0f766e 0%, #1e1b4b 100%)';
+                case 'widgets & tools':
+                case 'widgets':
+                    return 'linear-gradient(135deg, #0369a1 0%, #1e293b 100%)';
                 case 'nature & space':
                 case 'nature':
                     return 'linear-gradient(135deg, #311042 0%, #020617 100%)';
@@ -4802,13 +4834,14 @@
                 if (verifiedDirectoryStreams[item.url] !== 'online') {
                     return;
                 }
-                const itemCat = item.category.toLowerCase();
+                const itemCat = (item.category || '').toLowerCase();
                 
                 // Category filter
                 if (currentBrowserCategory !== 'all') {
                     if (currentBrowserCategory === 'news' && itemCat !== 'news') return;
-                    if (currentBrowserCategory === 'cities' && itemCat !== 'cities') return;
-                    if (currentBrowserCategory === 'nature' && itemCat !== 'nature & space') return;
+                    if (currentBrowserCategory === 'cameras' && itemCat !== 'cameras' && itemCat !== 'cities') return;
+                    if (currentBrowserCategory === 'widgets' && itemCat !== 'widgets & tools' && itemCat !== 'widgets') return;
+                    if (currentBrowserCategory === 'nature' && itemCat !== 'nature & space' && itemCat !== 'nature') return;
                 }
                 
                 // Search filter
@@ -4914,12 +4947,13 @@
             }
             
             const newStream = {
-                id: 'custom-' + Date.now(),
+                id: 'custom-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
                 name: String(name).trim().substring(0, 100),
                 url: safeUrl,
                 type: type,
                 category: category || 'General',
-                active: true,
+                active: false,
+                hiddenFromPicker: false,
                 isDefault: false
             };
             
