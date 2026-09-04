@@ -655,7 +655,8 @@
         }
 
         /* Modal Overlay */
-        .modal-overlay {
+        .modal-overlay,
+        .modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -673,7 +674,8 @@
             transition: opacity 0.25s ease;
         }
 
-        .modal-overlay.open {
+        .modal-overlay.open,
+        .modal.open {
             opacity: 1;
             pointer-events: auto;
         }
@@ -695,7 +697,8 @@
             -webkit-backdrop-filter: blur(32px);
         }
 
-        .modal-overlay.open .modal-content {
+        .modal-overlay.open .modal-content,
+        .modal.open .modal-content {
             transform: scale(1);
         }
 
@@ -2685,7 +2688,8 @@
 
         body.remote-mode header,
         body.remote-mode main,
-        body.remote-mode .modal-overlay {
+        body.remote-mode .modal-overlay,
+        body.remote-mode .modal {
             display: none !important;
         }
 
