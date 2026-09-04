@@ -81,7 +81,7 @@ const PUBLIC_STREAM_CATALOG = [
     // --- CAMERAS ---
     { 
         name: "Galveston - Skycam North", 
-        url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.fjfebpl.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "A panoramic high-altitude view overlooking the northern side of Galveston.", 
@@ -89,7 +89,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Skycam South", 
-        url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.yykibrj.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://use01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.yykibrj.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Panoramic southern view toward the Gulf of Mexico from Galveston.", 
@@ -97,7 +97,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Seawall (Beach View)", 
-        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Scenic webcam overlooking the famous boardwalk, beach, and surf of Galveston.", 
@@ -105,7 +105,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Seawall 28th St", 
-        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.ranl5w.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Live coastal camera view at 28th Street and Seawall Boulevard.", 
@@ -113,7 +113,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Downtown Square", 
-        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qlyfdf9.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qlyfdf9.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Historic downtown Galveston Strand district shopping and street view.", 
@@ -121,7 +121,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Harbor House", 
-        url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.zcsqd9k.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "High-definition streaming cam overlooking Galveston harbor and ship channel.", 
@@ -129,7 +129,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - 61st & Seawall", 
-        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qghrexk.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr05-relay.ozolio.com/hls-live/_definst_/relay01.qghrexk.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Beachfront view at 61st Street and Seawall Boulevard.", 
@@ -137,7 +137,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - East Beach Overlook", 
-        url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.odojbkb.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://usw01-smr04-relay.ozolio.com/hls-live/_definst_/relay01.odojbkb.fd0.sm1.av1.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "East Beach coastline overlook toward the entrance of the bay.", 
@@ -145,7 +145,7 @@ const PUBLIC_STREAM_CATALOG = [
     },
     { 
         name: "Galveston - Babe's Beach Cam", 
-        url: "https://use01-smr03-relay.ozolio.com/hls-live/_definst_/relay01.vzcxdtz.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt21882.rc0.edge.basic.stream/playlist.m3u8", 
+        url: "https://use01-smr03-relay.ozolio.com/hls-live/_definst_/relay01.vzcxdtz.fd0.sm1.av2.mt0.at0.as0.dv0.sh2.rt12843.rc0.edge.basic.stream/playlist.m3u8", 
         type: "hls", 
         category: "Cameras", 
         desc: "Babe's Beach coastline, surf conditions, and sunbathers.", 
